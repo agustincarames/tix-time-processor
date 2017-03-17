@@ -1,17 +1,24 @@
 import math
 
 
-# C version /*Written by Bob Sherman, modified by Walter Willinger, Vadim Teverovsky.*/
-# /* *** Crs
-# * S feeds this function a time series (data) of length n.
-# * The appropriate r and r/s statistics are computed and then
-# * returned to S through the vector output.
-# */
-
-# Python version written by Paula Verghelet 
-
-
 def Crs(data, n, nblk, nlag, overlap, output):
+    """
+    C version /*Written by Bob Sherman, modified by Walter Willinger, Vadim Teverovsky.*/
+    Crs
+    S feeds this function a time series (data) of length n.
+    The appropriate r and r/s statistics are computed and then
+    returned to S through the vector output.
+
+    Python version written by Paula Verghelet
+
+    :param data:
+    :param n:
+    :param nblk:
+    :param nlag:
+    :param overlap:
+    :param output:
+    :return:
+    """
     N = n
     NBLK = nblk
     NLAG = nlag

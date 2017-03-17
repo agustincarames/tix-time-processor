@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: iso-8859-15 -*-
-
-# Converted to Python using pywt by Paula Verghelet 2013
-# Code by Diethelm Wuertz, modified by Richard G. Clegg 2005.
-
 import math
 import numpy
 import pywt
