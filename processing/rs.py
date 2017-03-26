@@ -7,7 +7,7 @@
 
 import math
 import numpy
-from processing import crs
+from . import crs
 
 
 def plotrs(data, debug):
