@@ -3,7 +3,7 @@ import numpy
 import pywt
 
 
-def wavelet(data, debug):
+def wavelet(data):
     """
     wavelet <- function(x, length = NULL, order = 2, octave = c(2, 8),
     plotflag = TRUE, title = NULL, description = NULL, output= T)
@@ -56,13 +56,13 @@ def wavelet(data, debug):
     j1 = octave[0]
     j2 = octave[1]
     # R:	if(is.null(length)) length = 2^floor(log(length(x))/log(2))
-    length = 2 ** math.floor(math.log(len(data)) / math.log(2))
+    length = int(2 ** math.floor(math.log(len(data), 2)))
     # R:	noctave = log(length, base = 2) - 1
-    noctave = math.log(length, 2) - 1
+    noctave = int(math.log(length, 2) - 1)
     # R:	bound.effect = ceiling(log(2*N, base = 2))
-    bound_effect = math.ceil(math.log(2 * N, 2))
+    bound_effect = int(math.ceil(math.log(2 * N, 2)))
     # R:	statistic = rep(0, noctave)
-    statistic = [0] * int(noctave)
+    statistic = [0] * noctave
     if j2 > noctave - bound_effect:
         # R: cat("Upper bound too high, resetting to ", noctave-bound.effect, "\n")
         # R:	j2 = noctave - bound.effect
@@ -74,11 +74,13 @@ def wavelet(data, debug):
     # R:	        lev = (noctave+1-j))[N:(2^(noctave+1-j)-N)])^2), base = 2)
     #  db2 = Daubechies filter coefficients, phase 2
     # ppd = periodic
-    wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd', level=int(noctave) + 1)
+    # wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd', level=int(noctave) + 1)  # esto debería ser noctave - 1?
+    wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd')
     # print "len wdec ", len(wdec)
     # print wdec[8]
-    for j in range(0, (int(noctave) - int(bound_effect))):
-        wdec_level = wdec[int(noctave) + 1 - j][N:(2 ** (int(noctave) + 1 - j) - N)]
+    for j in range(0, (noctave - bound_effect)):
+        # wdec_level = wdec[int(noctave) + 1 - j][N:(2 ** (int(noctave) + 1 - j) - N)]
+        wdec_level = wdec[len(wdec) - 1 - j][N:(2 ** (len(wdec) - 1 - j) - N)]
         # print "wdec_level   ", wdec_level
         statistic[j] = math.log(numpy.mean([wdec_level[i] ** 2 for i in range(0, len(wdec_level))]), 2)
     # R: Fit:

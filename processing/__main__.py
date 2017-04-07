@@ -1,4 +1,6 @@
 from processing import app
 
 if __name__ == "__main__":
-    app.start()
+    from processing.completo_III import completoIII
+    completoIII()
+    # app.start()

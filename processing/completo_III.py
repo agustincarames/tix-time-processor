@@ -241,7 +241,7 @@ def completoIII():
         sq_S = 0  # SI encolados
         for p in probes_short:
             if p > umbral_S:
-                sq_S = sq_S + 1
+                sq_S += 1
 
             #### Para graficar el histograma: descomentar las siguientes lineas
             ## Calculo los puntos de la funcion continua de ajuste
@@ -1447,8 +1447,8 @@ def completoIII():
                     for line in arch:
                         data.append(float(line.split('\n')[0]))
 
-                    RS = rs.plotrs(data, debug)
-                    wavelet = wlt.wavelet(data, debug)
+                    RS = rs.plotrs(data)
+                    wavelet = wlt.wavelet(data)
                     resultados = RS
 
                     if resultados != 0:
