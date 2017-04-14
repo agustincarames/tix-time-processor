@@ -38,8 +38,7 @@ from . import wavelet as wlt
 # l_S = (60+8+20)*8       # [bits] 60 Bytes datos UDP + 8 Bytes header UDP + 20 Bytes header IP = 88 bytes
 # l_L = (4262+8+3*20)*8   # [bits] 4262 Bytes datos UDP + 8 Bytes header UDP + 3*20 Bytes header IP (3 paquetes) = 4330 bytes
 l_S = (48 + 8 + 20) * 8  # [bits] 48 Bytes datos UDP + 8 Bytes header UDP + 20 Bytes header IP = 75 bytes
-l_L = (
-      4449 + 8 + 3 * 20) * 8  # [bits] 4449 Bytes datos UDP + 8 Bytes header UDP + 3*20 Bytes header IP (3 paquetes) = 4517 bytes
+l_L = (4449 + 8 + 3 * 20) * 8  # [bits] 4449 Bytes datos UDP + 8 Bytes header UDP + 3*20 Bytes header IP (3 paquetes) = 4517 bytes
 
 # Aca voy a almacenar informacion entre el archivo de datos y los calculos
 # clave: file_name
@@ -47,11 +46,11 @@ l_L = (
 info_necesaria = dict()
 # Verifico existencia de archivos y leo parametros de entrada
 archivos = []  # Vector con los nombres de los archivos, NO pisar
-##################################################################################################################################
+#######################################################################################################################
 # Expresiones para calculo delay del canal
 # tau = 0.5*min[tT(i) - tqA - tqB - 2*l(i)/C_sim]
 # tau = 0.5*min[tT(i) - tqA - tqB - l(i)/CA - l(i)/CB]		Eq. (17) TiX
-##################################################################################################################################
+#######################################################################################################################
 
 # Descripción de la función de este script:
 # Condición necesaria: recibe como datos de entrada el/los archivos generados por el script conversion_salida.py
@@ -707,9 +706,6 @@ def completoIII():
         f.write(cadena_09)
         # Cierro el archivo
         f.close()
-    ##################################################################################################################################
-    # archivos.append("log_1h_37634414107.txt")
-    ##################################################################################################################################
 
     for file_name in archivos:
         datos_almacenados = {}

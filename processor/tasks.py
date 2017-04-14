@@ -1,16 +1,10 @@
-import os
-
 import logging
-from celery import Celery
 from celery.schedules import crontab
 
-REPORTS_BASE_PATH = os.environ.get('TIX_REPORTS_BASE_PATH', '/tmp/reports')
+from processing import app
 
-app = Celery("processing",
-             broker="amqp://guest:guest@localhost:5672//")
 
-logger = logging.getLogger('processing.__init__')
-
+tasks_logger = logging.getLogger(__name__)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
@@ -22,6 +16,7 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task
 def process_installation(installation_dir_path):
+    logger = tasks_logger.getChild()
     logger.info(installation_dir_path)
 
 
@@ -42,5 +37,3 @@ def process_users_data():
                 if os.path.isdir(second_file_path):
                     installation_dir_path = second_file_path
                     process_installation.delay(installation_dir_path)
-
-
