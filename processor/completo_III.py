@@ -68,7 +68,7 @@ archivos = []  # Vector con los nombres de los archivos, NO pisar
 # lambda_L
 
 # archivos.append("log_1h_28828221332.txt")
-archivos.append("processing/log_1h_74325627212")
+archivos.append("processor/log_1h_74325627212")
 
 
 def fitting_function(p, x):

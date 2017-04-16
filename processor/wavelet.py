@@ -75,7 +75,7 @@ def wavelet(data):
     #  db2 = Daubechies filter coefficients, phase 2
     # ppd = periodic
     # wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd', level=int(noctave) + 1)  # esto debería ser noctave - 1?
-    wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd')
+    wdec = pywt.wavedec(data[:length], 'db2', 'ppd')
     # print "len wdec ", len(wdec)
     # print wdec[8]
     for j in range(0, (noctave - bound_effect)):
