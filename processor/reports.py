@@ -9,7 +9,7 @@ import logging
 
 import struct
 
-from processor.ip_to_as import get_as
+from processor.ip_to_as import get_as_by_ip
 
 OBSERVATIONS_PER_REPORT = 60
 MINIMUM_OBSERVATIONS_QTY = 1200
@@ -197,15 +197,15 @@ def extract_processable_datapoints(reports_files):
     for report_file in reports_files:
         with open(report_file[0]) as report_pf:
             report = json.load(report_pf)
-            as_info = get_as(report['from'])
+            as_info = get_as_by_ip(report['from'])
             if as_info['id'] not in datapoints_per_as:
                 datapoints_per_as[as_info['id']] = {
-                    'id': as_info['id'],
-                    'as_owner': as_info['as_owener'],
-                    'datapoints': list()
+                    'as_id': as_info['id'],
+                    'as_owner': as_info['owner'],
+                    'observations': list()
                 }
             report_datapoints = extract_dict_report_datapoints(report)
-            datapoints_per_as[as_info['id']]['datapoints'].extend(report_datapoints)
+            datapoints_per_as[as_info['id']]['observations'].extend(report_datapoints)
     if len(datapoints_per_as) > 1:
         raise ValueError('Expected 1 AS, found {}'.format(len(datapoints_per_as)))
     as_id, datapoints = datapoints_per_as.items()
