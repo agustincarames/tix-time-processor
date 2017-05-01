@@ -5,7 +5,8 @@ import logging
 from celery.schedules import crontab
 from os.path import join, isdir
 
-from processor import app, REPORTS_BASE_PATH, get_datapoints, process_data_points, post_results
+from processor import app, REPORTS_BASE_PATH, process_data_points, post_results
+from processor import reports
 
 tasks_logger = logging.getLogger(__name__)
 
@@ -23,7 +24,9 @@ def process_installation(installation_dir_path, user_id, installation_id):
     logger = tasks_logger.getChild('process_installation')
     logger.info('installation_dir_path: {installation_dir_path}'.format(installation_dir_path=installation_dir_path))
     try:
-        datapoints = get_datapoints(installation_dir_path)
+        datapoints = reports.get_datapoints(installation_dir_path)
+        if len(datapoints) == 0:
+            return
         results = process_data_points(datapoints)
         post_results(user_id, installation_id, results)
     except:

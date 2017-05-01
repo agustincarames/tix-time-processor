@@ -1,11 +1,8 @@
-import json
 import logging
 import os
-from os import listdir
-from os.path import join, isdir
+from math import sqrt, floor
 
 from celery import Celery
-from math import sqrt, floor
 
 REPORTS_BASE_PATH = os.environ.get('TIX_REPORTS_BASE_PATH', '/tmp/reports')
 RABBITMQ_USER = os.environ.get('TIX_RABBITMQ_USER', 'guest')
@@ -24,30 +21,6 @@ app = Celery('processor.tasks',
                  rabbitmq_host=RABBITMQ_HOST,
                  rabbitmq_port=RABBITMQ_PORT
              ))
-
-
-def get_datapoints(installation_dir_path):
-    log = logger.getChild('get_datapoints')
-    log.info('getting datapoints')
-    # reports = {}
-    # for file_name in sorted(listdir(installation_dir_path)):
-    #     if file_name.endswith('.json'):
-    #         file_path = join(installation_dir_path, file_name)
-    #         if not isdir(file_path):
-    #             with open(file_path) as report_file:
-    #                 report = json.load(report_file)
-    #             report_as = get_as(report['from'])
-    #             if report_as['as_id'] not in reports:
-    #                 reports[report_as['as_id']] = {
-    #                     'as_id': report_as['as_id'],
-    #                     'as_owner': report_as['as_owner'],
-    #                     'report': list()
-    #                 }
-    #             reports[report_as['as_id']]['report'].append({
-    #                 'file_name': file_name,
-    #                 'message': deserealize_message(report['message'])
-    #             })
-    pass
 
 
 def datapoint_rtt_key_function(datapoint):
@@ -86,9 +59,20 @@ def get_bins_probabilities(histogram):
     return probabilities
 
 
-def process_data_points(datapoints):
-    log = logger.getChild('process_data_points')
-    log.info('processing data points')
+def separate_datapoints(datapoints):
+    short_packets_datapoints = []
+    long_packets_datapoints = []
+    for datapoint in datapoints:
+        if datapoint['type'] == 'S':
+            short_packets_datapoints.append(datapoint)
+        elif datapoint['type'] == 'L':
+            long_packets_datapoints.append(datapoint)
+        else:
+            raise ValueError('Unknown data point packet type: {}'.format(datapoint['type']))
+    return short_packets_datapoints, long_packets_datapoints
+
+
+def analyze_data_points(datapoints):
     histogram = generate_histogram(datapoints)
     probabilities = get_bins_probabilities(histogram)
     mode = max(probabilities)
@@ -100,6 +84,15 @@ def process_data_points(datapoints):
         mode_index = probabilities.index(mode)
         min_bin_min_rtt = bin_width(histogram[0])[2]
         threshold = mode_index + ALPHA * min_bin_min_rtt
+    pass
+
+
+def process_data_points(datapoints):
+    log = logger.getChild('process_data_points')
+    log.info('processing data points')
+    short_packets_datapoints, long_packets_datapoints = separate_datapoints(datapoints)
+    analyze_data_points(short_packets_datapoints)
+    analyze_data_points(long_packets_datapoints)
     pass
 
 
