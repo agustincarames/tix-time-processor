@@ -222,6 +222,9 @@ def get_data(installation_dir_path):
     return data
 
 
+def failed_results_empty(installation_dir_path):
+    failed_results_dir_path = join(installation_dir_path, FAILED_REPORTS_DIR_NAME)
+    return not exists(failed_results_dir_path) or len(listdir(failed_results_dir_path)) == 0
 
 
 def back_up_failed_results(installation_dir_path, results, as_info):
