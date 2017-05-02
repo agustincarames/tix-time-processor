@@ -20,9 +20,3 @@ app = Celery('processor.tasks',
                  rabbitmq_host=RABBITMQ_HOST,
                  rabbitmq_port=RABBITMQ_PORT
              ))
-
-
-def post_results(results, user_id, installation_id):
-    log = logger.getChild('post_results')
-    log.info('posting results')
-    pass

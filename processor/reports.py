@@ -1,7 +1,7 @@
 import base64
 import json
 from operator import itemgetter
-from os import listdir, unlink
+from os import listdir, unlink, mkdir
 
 from os.path import join, exists, isfile, islink
 
@@ -18,6 +18,8 @@ BACK_UP_REPORTS_PROCESSING_THRESHOLD = 10
 REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 5
 
 BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
+FAILED_REPORTS_DIR_NAME = 'failed-results'
+FAILED_REPORT_FILE_NAME_TEMPLATE = 'failed-report-{timestamp}.json'
 
 logger = logging.getLogger(__name__)
 
@@ -218,3 +220,17 @@ def get_datapoints(installation_dir_path):
     reports_files = get_processable_report_files(installation_dir_path)
     datapoints = extract_processable_datapoints(reports_files)
     return datapoints
+
+
+def back_up_failed_results(installation_dir_path, results, as_info):
+    failed_results_dir_path = join(installation_dir_path, FAILED_REPORTS_DIR_NAME)
+    json_failed_results = {
+        'results': results,
+        'as_info': as_info
+    }
+    if not exists(failed_results_dir_path):
+        mkdir(failed_results_dir_path)
+    failed_result_file_name = FAILED_REPORT_FILE_NAME_TEMPLATE.format(timestamp=results['timestamp'])
+    failed_result_file_path = join(failed_results_dir_path, failed_result_file_name)
+    with open(failed_result_file_path) as failed_result_file:
+        json.dump(json_failed_results, failed_result_file)

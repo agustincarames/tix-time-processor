@@ -5,8 +5,10 @@ import logging
 from celery.schedules import crontab
 from os.path import join, isdir
 
-from processor import app, REPORTS_BASE_PATH, process_data_points, post_results
+from processor import app, REPORTS_BASE_PATH
 from processor import reports
+from processor import api_communication
+from processor import hurst
 
 tasks_logger = logging.getLogger(__name__)
 
@@ -25,10 +27,15 @@ def process_installation(installation_dir_path, user_id, installation_id):
     logger.info('installation_dir_path: {installation_dir_path}'.format(installation_dir_path=installation_dir_path))
     try:
         datapoints = reports.get_datapoints(installation_dir_path)
-        if len(datapoints) == 0:
+        if len(datapoints['observations']) == 0:
             return
-        results = process_data_points(datapoints)
-        post_results(user_id, installation_id, results)
+        results = hurst.process_data_points(datapoints['observations'])
+        as_info = {
+            'id': datapoints['as_id'],
+            'owner': datapoints['as_owner']
+        }
+        if not api_communication.post_results(results, as_info, user_id, installation_id):
+            reports.back_up_failed_results(installation_dir_path, results, as_info)
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))
