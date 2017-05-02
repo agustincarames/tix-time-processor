@@ -148,9 +148,9 @@ def delete_files_before_last_gap_occurrence(gap, reports_files):
         unlink(report_file[0])
 
 
-def extract_dict_report_datapoints(report):
-    bytes_message = base64.b85decode(report['message'])
-    datapoints = []
+def extract_observations_from_report_message(report_message):
+    bytes_message = base64.b85decode(report_message)
+    observations = []
     for message_index in range(0, len(bytes_message), ReportLine.byte_size):
         line = bytes_message[message_index:message_index+ReportLine.byte_size]
         observation = {}
@@ -161,8 +161,8 @@ def extract_dict_report_datapoints(report):
         for field_index in range(len(ReportLine.fields)):
             field = ReportLine.fields[field_index]
             observation[field.name] = line_tuple[field_index]
-        datapoints.append(observation)
-    return datapoints
+        observations.append(observation)
+    return observations
 
 
 def get_processable_report_files(installation_dir_path):
@@ -194,32 +194,34 @@ def get_processable_report_files(installation_dir_path):
     return reports_files
 
 
-def extract_processable_datapoints(reports_files):
-    datapoints_per_as = {}
+def extract_processable_data(reports_files):
+    data_per_as = {}
     for report_file in reports_files:
         with open(report_file[0]) as report_pf:
             report = json.load(report_pf)
             as_info = get_as_by_ip(report['from'])
-            if as_info['id'] not in datapoints_per_as:
-                datapoints_per_as[as_info['id']] = {
+            if as_info['id'] not in data_per_as:
+                data_per_as[as_info['id']] = {
                     'as_id': as_info['id'],
                     'as_owner': as_info['owner'],
                     'observations': list()
                 }
-            report_datapoints = extract_dict_report_datapoints(report)
-            datapoints_per_as[as_info['id']]['observations'].extend(report_datapoints)
-    if len(datapoints_per_as) > 1:
-        raise ValueError('Expected 1 AS, found {}'.format(len(datapoints_per_as)))
-    as_id, datapoints = datapoints_per_as.items()
-    return datapoints
+            report_observations = extract_observations_from_report_message(report['message'])
+            data_per_as[as_info['id']]['observations'].extend(report_observations)
+    if len(data_per_as) > 1:
+        raise ValueError('Expected 1 AS, found {}'.format(len(data_per_as)))
+    as_id, data = data_per_as.items()
+    return data
 
 
-def get_datapoints(installation_dir_path):
+def get_data(installation_dir_path):
     log = logger.getChild('get_datapoints')
     log.info('getting datapoints')
     reports_files = get_processable_report_files(installation_dir_path)
-    datapoints = extract_processable_datapoints(reports_files)
-    return datapoints
+    data = extract_processable_data(reports_files)
+    return data
+
+
 
 
 def back_up_failed_results(installation_dir_path, results, as_info):

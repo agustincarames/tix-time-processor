@@ -69,7 +69,7 @@ def analyze_data_points(datapoints):
     pass
 
 
-def process_data_points(datapoints):
+def process_observations(datapoints):
     log = logger.getChild('process_data_points')
     log.info('processing data points')
     short_packets_datapoints, long_packets_datapoints = separate_datapoints(datapoints)
