@@ -12,10 +12,10 @@ import struct
 from processor.ip_to_as import get_as_by_ip
 
 OBSERVATIONS_PER_REPORT = 60
-MINIMUM_OBSERVATIONS_QTY = 1200
-MINIMUM_REPORTS_QTY = MINIMUM_OBSERVATIONS_QTY / OBSERVATIONS_PER_REPORT
-BACK_UP_REPORTS_PROCESSING_THRESHOLD = 10
-REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 5
+MINIMUM_OBSERVATIONS_QTY = 1024
+MINIMUM_REPORTS_QTY = int(MINIMUM_OBSERVATIONS_QTY * 1.2 / OBSERVATIONS_PER_REPORT)
+BACK_UP_REPORTS_PROCESSING_THRESHOLD = 5
+REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 3
 
 BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
 FAILED_REPORTS_DIR_NAME = 'failed-results'
@@ -208,10 +208,10 @@ def extract_processable_data(reports_files):
                 }
             report_observations = extract_observations_from_report_message(report['message'])
             data_per_as[as_info['id']]['observations'].extend(report_observations)
-    if len(data_per_as) > 1:
-        raise ValueError('Expected 1 AS, found {}'.format(len(data_per_as)))
-    as_id, data = data_per_as.items()
-    return data
+    for as_id, data in data_per_as.items():
+        if len(data['observations']) >= MINIMUM_OBSERVATIONS_QTY:
+            return data
+    raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(MINIMUM_OBSERVATIONS_QTY))
 
 
 def get_data(installation_dir_path):

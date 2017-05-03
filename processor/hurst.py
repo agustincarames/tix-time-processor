@@ -1,6 +1,6 @@
 import logging
 
-from math import floor, sqrt
+from math import floor, sqrt, log as log_function
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,19 @@ def separate_datapoints(datapoints):
     return short_packets_datapoints, long_packets_datapoints
 
 
-def analyze_data_points(datapoints):
-    histogram = generate_histogram(datapoints)
+def calculate_desired_length(incoming_length):
+    return int(2 ** floor(log_function(incoming_length, 2)))
+
+
+def cap_observations(observations):
+    desired_length = calculate_desired_length(len(observations))
+    capped_observations = observations[-desired_length:]
+    return capped_observations
+
+
+def analyze_data_points(observations):
+    capped_observations = cap_observations(observations)
+    histogram = generate_histogram(capped_observations)
     probabilities = get_bins_probabilities(histogram)
     mode = max(probabilities)
     if probabilities[0] == mode:
