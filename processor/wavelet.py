@@ -3,7 +3,7 @@ import numpy
 import pywt
 
 
-def wavelet(data):
+def wavelet(data, order=2, octaves_bounds=(2, 8)):
     """
     wavelet <- function(x, length = NULL, order = 2, octave = c(2, 8),
     plotflag = TRUE, title = NULL, description = NULL, output= T)
@@ -49,16 +49,14 @@ def wavelet(data):
     :param debug:
     :return:
     """
-    order = 2
-    octave = [2, 8]
     N = order
     # R:	call = match.call()
-    j1 = octave[0]
-    j2 = octave[1]
+    j1 = octaves_bounds[0]
+    j2 = octaves_bounds[1]
     # R:	if(is.null(length)) length = 2^floor(log(length(x))/log(2))
     length = int(2 ** math.floor(math.log(len(data), 2)))
     # R:	noctave = log(length, base = 2) - 1
-    noctave = int(math.log(length, 2) - 1)
+    noctave = int(math.log(length, 2)) - 1
     # R:	bound.effect = ceiling(log(2*N, base = 2))
     bound_effect = int(math.ceil(math.log(2 * N, 2)))
     # R:	statistic = rep(0, noctave)
@@ -68,19 +66,18 @@ def wavelet(data):
         # R:	j2 = noctave - bound.effect
         # R:	octave[2] = j2
         j2 = noctave - bound_effect
-        octave[1] = j2
     # R:	for (j in 1:(noctave - bound.effect)) {
     # R:	    statistic[j] = log(mean((.waccessD(transform,
     # R:	        lev = (noctave+1-j))[N:(2^(noctave+1-j)-N)])^2), base = 2)
     #  db2 = Daubechies filter coefficients, phase 2
     # ppd = periodic
     # wdec = pywt.wavedec(data[0:(int(length))], 'db2', 'ppd', level=int(noctave) + 1)  # esto debería ser noctave - 1?
-    wdec = pywt.wavedec(data[:length], 'db2', 'ppd')
+    wdec = pywt.wavedec(data[:length], 'db2', 'ppd', level=noctave - 1)
     # print "len wdec ", len(wdec)
     # print wdec[8]
     for j in range(0, (noctave - bound_effect)):
         # wdec_level = wdec[int(noctave) + 1 - j][N:(2 ** (int(noctave) + 1 - j) - N)]
-        wdec_level = wdec[len(wdec) - 1 - j][N:(2 ** (len(wdec) - 1 - j) - N)]
+        wdec_level = wdec[noctave - 1 - j][N - 1:(2 ** (noctave - j) - N)]
         # print "wdec_level   ", wdec_level
         statistic[j] = math.log(numpy.mean([wdec_level[i] ** 2 for i in range(0, len(wdec_level))]), 2)
     # R: Fit:
@@ -93,8 +90,8 @@ def wavelet(data):
     # R:	H = (beta+1)/2
 
     # Fit:
-    X = [10 ** i for i in range(int(j1), int(j2))]
-    Y = [10 ** i for i in statistic[int(j1):int(j2)]]
+    X = [10 ** i for i in range(j1, j2 + 1)]
+    Y = [10 ** i for i in statistic[j1 - 1:j2]]
 
     # R:	fit = lsfit(log10(X), log10(Y))
     # R:	fitH = lsfit(log10(X), log10(Y*X)/2)

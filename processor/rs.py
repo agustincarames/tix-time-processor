@@ -27,7 +27,7 @@ def plotrs(data):
     logger.debug("data: {data}".format(data=data))
     n = len(data)
     increment = math.log10(n) / NLAG
-    output = [0 for x in range(0, (2 * NBLK * NLAG))]
+    output = [0] * (2 * NBLK * NLAG)
     crs.Crs(data, len(data), NBLK, NLAG, OVERLAP, output)
     range_ = output
     logger.debug("range: {range}".format(range=str(range_)))
