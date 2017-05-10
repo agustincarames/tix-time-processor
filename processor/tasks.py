@@ -8,7 +8,7 @@ from os.path import join, isdir
 from processor import app, REPORTS_BASE_PATH
 from processor import reports
 from processor import api_communication
-from processor import hurst
+from processor import analysis
 
 tasks_logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def process_installation(installation_dir_path, user_id, installation_id):
         data = reports.get_data(installation_dir_path)
         if len(data['observations']) == 0:
             return
-        results = hurst.process_observations(data['observations'])
+        results = analysis.process_observations(data['observations'])
         as_info = {
             'id': data['as_id'],
             'owner': data['as_owner']

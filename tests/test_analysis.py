@@ -3,14 +3,14 @@ from datetime import datetime, timezone
 
 import dateutil.parser
 
-from processor import hurst
+from processor import analysis
 
 
 class TestHurst(unittest.TestCase):
 
     def setUp(self):
         self.reports_data = []
-        with open('tests/test_hurst_data.txt') as data_file:
+        with open('tests/test_analysis_data.txt') as data_file:
             for line in data_file:
                 datetime_string, observation_data = line.split(' ')
                 date_str, time_str = datetime_string.split('|')
@@ -31,7 +31,7 @@ class TestHurst(unittest.TestCase):
 
     def test_process_observations(self):
         expected_results = {
-            'timestamp':
+            'timestamp': 0,
             'downstream_usage': .0,
             'upstream_usage': .0,
             'upstream_quality': .0,
@@ -45,7 +45,7 @@ class TestHurst(unittest.TestCase):
                 'rs': .0
             }
         }
-        results = hurst.process_observations(self.reports_data)
+        results = analysis.process_observations(self.reports_data)
         print(results)
         self.assertAlmostEqual()
         pass
