@@ -10,8 +10,8 @@ from math import floor, sqrt, log as log_function
 from processor import rs
 from processor import wavelet
 
-UPSTREAM_SERIALIZATION_TIME = 200  # 200 nanoseconds
-DOWNSTREAM_SERIALIZATION_TIME = 200  # 200 nanoseconds
+UPSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
+DOWNSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
 
 MEANINGFUL_OBSERVATIONS_DELTA = timedelta(minutes=10)
 
@@ -22,15 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 def observation_rtt_key_function(observation):
-    return observation['t4'] - observation['t1']
+    return observation['final_timestamp'] - observation['initial_timestamp']
 
 
 def upstream_time_function(observation, phi_function):
-    return observation['t2'] - phi_function(observation['timestamp']) - observation['t1']
+    return observation['reception_timestamp'] - phi_function(observation['day_timestamp']) \
+           - observation['initial_timestamp']
 
 
 def downstream_time_function(observation, phi_function):
-    return observation['t4'] - observation['t3'] + phi_function(observation['timestamp'])
+    return observation['final_timestamp'] - observation['sent_timestamp'] \
+           + phi_function(observation['day_timestamp'])
 
 
 def generate_histogram(observations, histogram_sorting_key_function):
@@ -50,8 +52,8 @@ def generate_histogram(observations, histogram_sorting_key_function):
 
 
 def bin_info(hbin, histogram_sorting_key_function):
-    max_rtt = max(hbin, key=histogram_sorting_key_function)
-    min_rtt = min(hbin, key=histogram_sorting_key_function)
+    max_rtt = histogram_sorting_key_function(max(hbin, key=histogram_sorting_key_function))
+    min_rtt = histogram_sorting_key_function(min(hbin, key=histogram_sorting_key_function))
     bin_width = max_rtt - min_rtt
     return bin_width, max_rtt, min_rtt
 
@@ -100,7 +102,7 @@ def characterize_observations(observations, characterization_key_function):
 def divide_observations_into_minutes(observations):
     observations_per_minute = {}
     for observation in observations:
-        observation_datetime = datetime.fromtimestamp(observation['timestamp'], timezone.utc)
+        observation_datetime = datetime.fromtimestamp(observation['day_timestamp'], timezone.utc)
         observation_minute = observation_datetime.replace(second=0, microsecond=0).timestamp()
         if observation_minute not in observations_per_minute:
             observations_per_minute[observation_minute] = []
@@ -129,8 +131,10 @@ def generate_observations_with_clocks_corrections(observations, tau,
                                                   downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
                                                   upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
     for observation in observations:
-        upstream_phi = observation['t2'] - observation['t1'] - upstream_serialization_time - tau
-        downstream_phi = observation['t3'] - observation['t4'] + downstream_serialization_time + tau
+        upstream_phi = observation['reception_timestamp'] - observation['initial_timestamp'] \
+                       - upstream_serialization_time - tau
+        downstream_phi = observation['sent_timestamp'] - observation['final_timestamp'] \
+                         + downstream_serialization_time + tau
         estimated_phi = (downstream_phi + upstream_phi) / 2
         observation['upstream_phi'] = upstream_phi
         observation['downstream_phi'] = downstream_phi
@@ -146,7 +150,7 @@ def get_phi_function(observations, tau):
     observations_with_phi = generate_observations_with_clocks_corrections(observations, tau)
     phis_per_minute = get_phis_per_minute(observations_with_phi)
     slope, intercept = get_phi_function_parameters(phis_per_minute)
-    return partial(base_phi_function, slope=slope, intercept=intercept)
+    return partial(base_phi_function, slope, intercept)
 
 
 def get_hurst_value(data):
@@ -156,6 +160,10 @@ def get_hurst_value(data):
         'wavelet': wavelet_hurst,
         'rs': rs_hurst
     }
+
+
+def calculate_effective_hurst(hurst_dict):
+    return (hurst_dict['wavelet'] + hurst_dict['rs']) / 2
 
 
 def get_hurst_values(observations, phi_function):
@@ -175,12 +183,13 @@ def get_hurst_values(observations, phi_function):
 def get_meaningful_observations(observations):
     first_observation = observations[0]
     last_observation = observations[-1]
-    observations_delta = timedelta(seconds=(last_observation['timestamp'] - first_observation['timestamp']))
+    observations_delta = timedelta(seconds=(last_observation['day_timestamp'] - first_observation['day_timestamp']))
     if observations_delta < MEANINGFUL_OBSERVATIONS_DELTA:
         raise ValueError('Meaningful observations time delta is lower than expected. Expected {}, got {}'\
                          .format(MEANINGFUL_OBSERVATIONS_DELTA, observations_delta))
-    meaningful_threshold_timestamp = last_observation['timestamp'] - MEANINGFUL_OBSERVATIONS_DELTA.total_seconds()
-    meaningful_observations = [ observation for observation in observations if observation['timestamp'] > meaningful_threshold_timestamp ]
+    meaningful_threshold_timestamp = last_observation['day_timestamp'] - MEANINGFUL_OBSERVATIONS_DELTA.total_seconds()
+    meaningful_observations = [observation for observation in observations
+                               if observation['day_timestamp'] > meaningful_threshold_timestamp]
     return meaningful_observations
 
 
@@ -207,11 +216,13 @@ def get_quality(observations, upstream_hurst, downstream_hurst, phi_function):
     observations_per_minute = divide_observations_into_minutes(observations)
     upstream_congestion = 0
     downstream_congestion = 0
+    effective_upstream_hurst = calculate_effective_hurst(upstream_hurst)
+    effective_downstream_hurst = calculate_effective_hurst(downstream_hurst)
     for minute, m_observations in observations_per_minute.items():
         upstream_usage, downstream_usage = get_usage(m_observations, phi_function)
-        if upstream_usage < CONGESTION_THRESHOLD and upstream_hurst > HURST_CONGESTION_THRESHOLD:
+        if upstream_usage < CONGESTION_THRESHOLD and effective_upstream_hurst > HURST_CONGESTION_THRESHOLD:
             upstream_congestion += 1
-        if downstream_usage < CONGESTION_THRESHOLD and downstream_hurst > HURST_CONGESTION_THRESHOLD:
+        if downstream_usage < CONGESTION_THRESHOLD and effective_downstream_hurst > HURST_CONGESTION_THRESHOLD:
             downstream_congestion += 1
     upstream_quality = (len(observations_per_minute) - upstream_congestion) / len(observations_per_minute)
     downstream_quality = (len(observations_per_minute) - downstream_congestion) / len(observations_per_minute)
@@ -232,7 +243,7 @@ def process_observations(observations):
                                                        downstream_hurst=downstream_hurst,
                                                        phi_function=phi_function)
     return {
-        'timestamp': meaningful_observations[0]['timestamp'],
+        'timestamp': meaningful_observations[0]['day_timestamp'],
         'upstream_usage': upstream_usage,
         'downstream_usage': downstream_usage,
         'upstream_quality': upstream_quality,
