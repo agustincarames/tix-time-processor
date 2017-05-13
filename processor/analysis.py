@@ -7,8 +7,7 @@ import numpy as np
 from scipy import stats
 from math import floor, sqrt, log as log_function
 
-from processor import rs
-from processor import wavelet
+from processor import hurst
 
 UPSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
 DOWNSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
@@ -154,8 +153,8 @@ def get_phi_function(observations, tau):
 
 
 def get_hurst_value(data):
-    wavelet_hurst = wavelet.wavelet(data)
-    rs_hurst = rs.plotrs(data)
+    wavelet_hurst = hurst.wavelet(data)
+    rs_hurst = hurst.rs(data)
     return {
         'wavelet': wavelet_hurst,
         'rs': rs_hurst
