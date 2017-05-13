@@ -84,11 +84,11 @@ def get_mode_and_threshold(histogram, histogram_sorting_key_function, alpha=1):
                                                                       histogram_sorting_key_function)
     mode_value = mode_bin_min_value + mode_bin_width / 2
     if probabilities[0] == mode:
-        bin_width, bin_max_value, bin_min = bin_info(histogram[1], histogram_sorting_key_function)
-        threshold = bin_min + int(bin_width / 2)
+        bin_width, bin_max_value, bin_min_value = bin_info(histogram[1], histogram_sorting_key_function)
+        threshold = bin_min_value + int(bin_width / 2)
     else:
-        min_bin_min_value = bin_info(histogram[0], histogram_sorting_key_function)[2]
-        threshold = mode_value + alpha * min_bin_min_value
+        min_bin_width, min_bin_max_value, min_bin_min_value = bin_info(histogram[0], histogram_sorting_key_function)
+        threshold = mode_value + alpha * (min_bin_min_value + int(min_bin_width / 2))
     return mode_value, threshold
 
 
