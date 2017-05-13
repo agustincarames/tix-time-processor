@@ -6,7 +6,7 @@ import dateutil.parser
 from processor import analysis
 
 
-class TestHurst(unittest.TestCase):
+class TestAnalysis(unittest.TestCase):
 
     def setUp(self):
         self.reports_data = []

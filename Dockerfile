@@ -19,7 +19,9 @@ RUN apt-get update \
     curl \
     python3 \
     python3-dev \
-    python3-pip
+    python3-pip \
+    libsdl2-dev \
+    libffi-dev
 
 RUN mkdir -p /root/tix-time-processor/processor
 RUN mkdir -p $CELERY_BEAT_SCHEDULE_DIR
