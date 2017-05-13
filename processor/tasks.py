@@ -28,9 +28,11 @@ def process_installation(installation_dir_path, user_id, installation_id):
     try:
         ip, observations = reports.get_data(installation_dir_path)
         if len(observations) == 0:
+            logger.warn('No observations found')
             return
         results = analysis.process_observations(observations)
         if not api_communication.post_results(ip, results, user_id, installation_id):
+            logger.warn('Could not post results to API. Backing up file for later.')
             reports.back_up_failed_results(installation_dir_path, results, ip)
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))

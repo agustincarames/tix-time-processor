@@ -221,11 +221,11 @@ def failed_results_empty(installation_dir_path):
     return not exists(failed_results_dir_path) or len(listdir(failed_results_dir_path)) == 0
 
 
-def back_up_failed_results(installation_dir_path, results, as_info):
+def back_up_failed_results(installation_dir_path, results, ip):
     failed_results_dir_path = join(installation_dir_path, FAILED_REPORTS_DIR_NAME)
     json_failed_results = {
         'results': results,
-        'as_info': as_info
+        'ip': ip
     }
     if not exists(failed_results_dir_path):
         mkdir(failed_results_dir_path)
