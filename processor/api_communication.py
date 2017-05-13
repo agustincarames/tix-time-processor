@@ -10,25 +10,18 @@ TIX_API_PORT = os.environ.get('TIX_API_PORT', '80')
 logger = logging.getLogger(__name__)
 
 
-def prepare_results_for_api(results, as_info):
+def prepare_results_for_api(results, ip):
     return {
         'timestamp': results['timestamp'],
-        'upstream': {
-            'usage': results['upstream_usage'],
-            'quality': results['upstream_quality']
-        },
-        'downstream': {
-            'usage': results['downstream_usage'],
-            'quality': results['downstream_quality']
-        },
-        'hurst': {
-            'rs': results['rs'],
-            'wavelet': results['wavelet']
-        },
-        'as': {
-            'as_id': as_info['id'],
-            'as_owner': as_info['owner']
-        }
+        'upUsage':  results['upstream']['usage'],
+        'upQuality': results['upstream']['quality'],
+        'downUsage': results['downstream']['usage'],
+        'downQuality': results['downstream']['quality'],
+        'hurstUpRs':  results['upstream']['hurst']['rs'],
+        'hurstUpWavelet': results['upstream']['hurst']['wavelet'],
+        'hurstDownRs': results['downstream']['hurst']['rs'],
+        'hurstDownWavelet': results['downstream']['hurst']['wavelet'],
+        'ipAddress': ip
     }
 
 
@@ -47,11 +40,14 @@ def prepare_url(user_id, installation_id):
     return url
 
 
-def post_results(results, as_info, user_id, installation_id):
+def post_results(ip, results, user_id, installation_id):
     log = logger.getChild('post_results')
-    log.info('posting results')
-    json_data = prepare_results_for_api(results, as_info)
+    log.info('posting results for user {user_id} installation {installation_id}'.format(user_id=user_id,
+                                                                                        installation_id=installation_id))
+    json_data = prepare_results_for_api(results, ip)
+    log.debug('json_data={json_data}'.format(json_data=json_data))
     url = prepare_url(user_id, installation_id)
+    log.debug('url={url}'.format(url=url))
     response = requests.post(url=url, json=json_data)
     if response.status_code not in (200, 204):
         log.error('Error while trying to post to API, got status code {status_code} for url {url}'

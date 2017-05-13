@@ -9,8 +9,6 @@ import logging
 
 import struct
 
-from processor.ip_to_as import get_as_by_ip
-
 OBSERVATIONS_PER_REPORT = 60
 MINIMUM_OBSERVATIONS_QTY = 1024
 MINIMUM_REPORTS_QTY = int(MINIMUM_OBSERVATIONS_QTY * 1.2 / OBSERVATIONS_PER_REPORT)
@@ -195,22 +193,18 @@ def get_processable_report_files(installation_dir_path):
 
 
 def extract_processable_data(reports_files):
-    data_per_as = {}
+    data_per_ip = {}
     for report_file in reports_files:
         with open(report_file[0]) as report_pf:
             report = json.load(report_pf)
-            as_info = get_as_by_ip(report['from'])
-            if as_info['id'] not in data_per_as:
-                data_per_as[as_info['id']] = {
-                    'as_id': as_info['id'],
-                    'as_owner': as_info['owner'],
-                    'observations': list()
-                }
+            ip = report['from']
+            if ip not in data_per_ip:
+                data_per_ip[ip] = list()
             report_observations = extract_observations_from_report_message(report['message'])
-            data_per_as[as_info['id']]['observations'].extend(report_observations)
-    for as_id, data in data_per_as.items():
-        if len(data['observations']) >= MINIMUM_OBSERVATIONS_QTY:
-            return data
+            data_per_ip[ip].extend(report_observations)
+    for ip, observations in data_per_ip.items():
+        if len(observations) >= MINIMUM_OBSERVATIONS_QTY:
+            return ip, observations
     raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(MINIMUM_OBSERVATIONS_QTY))
 
 

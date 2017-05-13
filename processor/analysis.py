@@ -244,10 +244,14 @@ def process_observations(observations):
                                                        phi_function=phi_function)
     return {
         'timestamp': meaningful_observations[0]['day_timestamp'],
-        'upstream_usage': upstream_usage,
-        'downstream_usage': downstream_usage,
-        'upstream_quality': upstream_quality,
-        'downstream_quality': downstream_quality,
-        'upstream_hurst': upstream_hurst,
-        'downstream_hurst': downstream_hurst
+        'upstream': {
+            'usage': upstream_usage,
+            'quality': upstream_quality,
+            'hurst': upstream_hurst
+        },
+        'downstream': {
+            'usage': downstream_usage,
+            'quality': downstream_quality,
+            'hurst': downstream_hurst
+        }
     }
