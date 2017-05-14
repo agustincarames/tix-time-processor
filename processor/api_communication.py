@@ -7,7 +7,7 @@ from requests.auth import HTTPBasicAuth
 
 TIX_API_SSL = os.environ.get('TIX_API_SSL', None) is not None
 TIX_API_HOST = os.environ.get('TIX_API_HOST', 'localhost')
-TIX_API_PORT = os.environ.get('TIX_API_PORT', '80')
+TIX_API_PORT = os.environ.get('TIX_API_PORT')
 TIX_API_USER = os.environ.get('TIX_API_USER')
 TIX_API_PASS = os.environ.get('TIX_API_PASSWORD')
 
@@ -32,12 +32,18 @@ def prepare_results_for_api(results, ip):
 def prepare_url(user_id, installation_id):
     if TIX_API_SSL:
         proto = 'https'
+        default_port = 443
     else:
         proto = 'http'
+        default_port = 80
+    if TIX_API_PORT and int(TIX_API_PORT) != default_port:
+        api_port = ':' + TIX_API_PORT
+    else:
+        api_port = ''
     url = '{proto}://{api_host}:{api_port}/api/user/{user_id}/installation/{installation_id}/report'.format(
         proto=proto,
         api_host=TIX_API_HOST,
-        api_port=TIX_API_PORT,
+        api_port=api_port,
         user_id=user_id,
         installation_id=installation_id
     )
