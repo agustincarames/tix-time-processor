@@ -16,7 +16,7 @@ tasks_logger = logging.getLogger(__name__)
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
-        crontab(minute='*/1'),
+        crontab(minute='*/10'),
         process_users_data.s(REPORTS_BASE_PATH),
         name='process_users_data')
 

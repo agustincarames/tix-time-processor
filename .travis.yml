@@ -1,0 +1,34 @@
+language: python
+python:
+  - '3.4'
+
+sudo: required
+
+services:
+  - docker
+  - rabbitmq
+
+install:
+  - apt-get install libsdl2-dev libffi-dev
+  - pip install -r requirements.txt
+
+script:
+  - nosetests --with-xunit --with-coverage --cover-package=processor --cover-branches --cover-xml tests
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+  - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+  - export REPO=tixmeasurements/tix-time-processor
+  - export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo $TRAVIS_BRANCH
+    ; fi`
+  - docker build -f Dockerfile -t $REPO:$COMMIT .
+  - docker tag $REPO:$COMMIT $REPO:$TAG
+  - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
+  - docker push $REPO
+
+env:
+  global:
+    - secure: Y78FjM75Eths6huo0mePEgPbEyvznP2P2NtNGNaZlMwn0lZ+5S+vzMGnfhZTmSfaF38zBsxecYyoo1BJa/VVbLB/dz1vyG6kpsye7MCozAGUYS++ch4JOaOaESg45ubbmH5Rb6HMUhSiMH0qL5JjcScxT1JfejiUsYLTBV4/y4D6p6tAncTxiDO/os0hR7EMNDOCGy1LenfQMADjERzt324Xg62KW9Ud3b0KsoJSWjYVxV3FVaOTETP/ej8c8pUlCiBtMzWquYwpU/8MbHIvMYUdQ6hUrHS8UsBSR2yZ8LytwSmOTdisHm3Se6mJ7Q7Xqtu1UP1H1PzsZzPD5sSXfdSsuQPBPHRSrl1c89/G988l4tTqpHvjxbmpULCyrQg40KyNyNQI21hWq9Y47Oj18if9gSgCrS2GvQVC89XeU9/vlKP0KZesZpkQRNByoPsyu/JcrRRzDXHdFf+ds3tNWcCchCzf6tU9wPdgFSU5gRtWuku7fCE+8O/wLrl9Mh5N+Yoj/UOkjKYnrF7rg4IBkVWFSl9/TZbok5XGwJFPT9wfX8Bi1B7uR9y+XctxWeROENtx0GBNKYzfQPZ9vY5V9qXdZHBRexGhEUrKsIOconsKfnAPsTTlxNJO0kjUWkEYjUNI5pYiPydN+kimygCwu+bPSWyTiqQqkgTl6zo39vo=
+    - secure: 4QAxfr/EVIqfMgqYnF9bWTgHX8kKOffZlSVCcR2bC5qvUu8oHflYfrhhlWXK7Gw+y3EYgpM3NZdkuofNm0b4Zq7PcYybVDe9RohBh2XLolxS/2vT5euy/Ezd7cnsSqTc5YMGjYFI7FTNXLLcsUz8qObhYvYuK07b/mC5yRGkGbcoF2zWR9zmU16hm4npkGiSa1UC6xeaV57nThHPSfviS57HiNgR3MFWzJ6q9lsZ2cHaITkJL1swCLHbnCHSnHUFJDKcEW9CvLBxPd3Vq7MUxi8VSVnk+ljn58l6zmpxqZ+0OjDGoDaD0EUJKHCQ0QzLWfqoI8yZziQe3+3+2MFu/u/Buz/2BYtOc17bm8lCYGUPzeSvDj442leRWz0e7STK5yibiDfIsPlbbOZMCWKNHZG9eIL2Hted0bhgTfPHokoTNqOpi66uOZj4YsoZFhBTRv3kaImF1cI7Tcwkdpp0zI/6/CzzgX5aKGPvMIjrYIwleVT1uB0ydegZwLHk2CsQkB1+S9YIe+G0kCtRzi7mwC9lJR+uEKdExo37ElJkLGYwm7ENXrGJQ4YkUkO18HGl8CX8zYKhBAQstMVg3z/SMKb+4/EGW7JinzOQjF2gyXLJmt0fRtQJuThmzrG0ywKgypuQmwdhYezVj6MfdockeWITppmZ1MmnrhOYB1kcQSg=
+    - secure: 4GDe+ZiWZr0xzRYiwOP5xtgBo/eg3/rGUAC5sT+4sv6Kl6UrFEYf6WUClpNJj1h1lzOM2TrAhtugKGHlptObI9WsPOVChI5iTT4gWoG5S8/6gMOU2tiLMDaU5cv2ZphaPrqtdTUeBxFs5NQSkXb/LdZYRPyWJpghPwFrtpqnBBKrolR8p2Tr4Je9R3YZusQKRi2xS+BndrOI+Yw3AQe2C3Eh5dLRetHOhqoVMGuOfNvLSu9aRLe7YHoHQeGwuGXWD/p3WY4cGw0adrKEsKKtK9fxGPgjh9T2hpi89wDLoUbnZMQ9LqXBIdq6YnafRXlC+IuvmgbI60J3wZNyBIAaqXp2qp0C5ftDE1A5QTeff1Wo2CGVbpKSwOKMMDw46MUlTXFu6/Q5d6I7T4/ho3bARiDw/fMHnqf37eJpFcNBTP/SNupKvqkdxPiqqj/M1i3JCZi0Fo2As2f/omLrOAleW6YOiVqN0twrO93P8dIRA7TdCxLg6///oPu86Pm64YmWbvtn9+4wVjoGuE43pQTSMYcySbaNzXfCjXLYWteWkVEvfjjV2r2rqahS/bmkqZWjYSrUR6z/LH8rb+sb7ufDyflDsIFmMuEH4Fa9XldFbQ+2kywt0fItjv4DMQm8857GJsLn3JOnMIpJVqgitJEkyr7bkKOjCcIKpmM60mLlruQ=
+    - COMMIT=${TRAVIS_COMMIT::8}

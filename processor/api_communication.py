@@ -5,11 +5,12 @@ import requests
 from requests import RequestException
 from requests.auth import HTTPBasicAuth
 
-TIX_API_SSL = os.environ.get('TIX_API_SSL', None) is not None
+TIX_API_SSL = os.environ.get('TIX_API_SSL') is not None
 TIX_API_HOST = os.environ.get('TIX_API_HOST', 'localhost')
 TIX_API_PORT = os.environ.get('TIX_API_PORT')
 TIX_API_USER = os.environ.get('TIX_API_USER')
 TIX_API_PASS = os.environ.get('TIX_API_PASSWORD')
+TIX_API_URL_TEMPLATE = '{proto}://{api_host}/api/user/{user_id}/installation/{installation_id}/report'
 
 logger = logging.getLogger(__name__)
 
@@ -29,28 +30,27 @@ def prepare_results_for_api(results, ip):
     }
 
 
-def prepare_url(user_id, installation_id):
-    if TIX_API_SSL:
+def prepare_url(user_id, installation_id, tix_api_ssl=TIX_API_SSL, tix_api_host=TIX_API_HOST, tix_api_port=TIX_API_PORT):
+    if tix_api_ssl:
         proto = 'https'
         default_port = 443
     else:
         proto = 'http'
         default_port = 80
-    if TIX_API_PORT and int(TIX_API_PORT) != default_port:
-        api_port = ':' + TIX_API_PORT
+    if tix_api_port and int(tix_api_port) != default_port:
+        api_port = ':' + tix_api_port
     else:
         api_port = ''
-    url = '{proto}://{api_host}:{api_port}/api/user/{user_id}/installation/{installation_id}/report'.format(
+    url = TIX_API_URL_TEMPLATE.format(
         proto=proto,
-        api_host=TIX_API_HOST,
-        api_port=api_port,
+        api_host=tix_api_host + api_port,
         user_id=user_id,
         installation_id=installation_id
     )
     return url
 
 
-def post_results(ip, results, user_id, installation_id):
+def post_results(ip, results, user_id, installation_id, tix_api_user=TIX_API_USER, tix_api_pass=TIX_API_PASS):
     log = logger.getChild('post_results')
     log.info('posting results for user {user_id} installation {installation_id}'.format(user_id=user_id,
                                                                                         installation_id=installation_id))
@@ -58,13 +58,13 @@ def post_results(ip, results, user_id, installation_id):
     log.debug('json_data={json_data}'.format(json_data=json_data))
     url = prepare_url(user_id, installation_id)
     log.debug('url={url}'.format(url=url))
-    if not TIX_API_USER or not TIX_API_PASS:
+    if not tix_api_user or not tix_api_pass:
         log.warn('No user nor password supplied for API Connection')
         return False
     try:
         response = requests.post(url=url,
                                  json=json_data,
-                                 auth=HTTPBasicAuth(TIX_API_USER, TIX_API_PASS))
+                                 auth=HTTPBasicAuth(tix_api_user, tix_api_pass))
         if response.status_code not in (200, 204):
             log.error('Error while trying to post to API, got status code {status_code} for url {url}'
                       .format(status_code=response.status_code,
