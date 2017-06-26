@@ -287,20 +287,20 @@ def wavelet(data, order=2, octaves_bounds=(2, 8)):
     # R:	H = (beta+1)/2
 
     # Fit:
-    X = [10 ** i for i in range(j1, j2 + 1)]
-    Y = [10 ** i for i in statistic[j1 - 1:j2]]
+    x = [10 ** i for i in range(j1, j2 + 1)]
+    y = [10 ** i for i in statistic[j1 - 1:j2]]
 
     # R:	fit = lsfit(log10(X), log10(Y))
     # R:	fitH = lsfit(log10(X), log10(Y*X)/2)
-    x_ = [math.log10(X[i]) for i in range(0, len(X))]
-    y_ = [math.log10(Y[i]) for i in range(0, len(Y))]
-    yy_ = [math.log10(Y[i] * X[i]) / 2 for i in range(0, len(Y))]
+    log10_x = [math.log10(x[i]) for i in range(0, len(x))]
+    log10_y = [math.log10(y[i]) for i in range(0, len(y))]
+    log10_yx = [math.log10(y[i] * x[i]) / 2 for i in range(0, len(y))]
 
-    A = numpy.vstack([x_, numpy.ones(len(X))]).T
-    fit, coef1 = numpy.linalg.lstsq(A, y_)[0]
+    A = numpy.vstack([log10_x, numpy.ones(len(x))]).T
+    fit, coef1 = numpy.linalg.lstsq(A, log10_y)[0]
 
-    B = numpy.vstack([x_, numpy.ones(len(X))]).T
-    fitH, coef2 = numpy.linalg.lstsq(B, yy_)[0]
+    B = numpy.vstack([log10_x, numpy.ones(len(x))]).T
+    fitH, coef2 = numpy.linalg.lstsq(B, log10_yx)[0]
 
     # residuals= numpy.linalg.lstsq(B, yy_)[1]
     # residuals : {(), (1,), (K,)} ndarray
