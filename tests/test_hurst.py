@@ -1,36 +1,26 @@
+import json
 import unittest
-
-from tdl import noise
 
 from processor import hurst
 
 
-@unittest.skip("temporarily disabled due to incosistency")
 class TestHurst(unittest.TestCase):
 
     def setUp(self):
-        hurst_values = [0.5, 0.6, 0.65, 0.68, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        sequence_lengths = [2 ** 10, 2 ** 11, 2 ** 12]
-        self.sequences = []
-        for hurst_value in hurst_values:
-            noise_generator = noise.Noise(mode='TURBULENCE', hurst=hurst_value, dimensions=2)
-            for sequence_length in sequence_lengths:
-                self.sequences.append({
-                    'hurst_value': hurst_value,
-                    'noise': [noise_generator.get_point(.5, point) for point in range(sequence_length)]
-                })
+        self.max_error = .005
+        with open("tests/test_hurst_data.json") as test_data_file:
+            self.sequences = json.load(test_data_file)
         pass
 
-    def testRs(self):
+    def estimatorTest(self, estimator, estimator_name):
         for sequence in self.sequences:
-            hurst_value = hurst.rs(sequence['noise'])
-            expected_hurst_value = sequence['hurst_value']
-            max_error = expected_hurst_value * .2
-            self.assertAlmostEqual(hurst_value, sequence['hurst_value'], delta=max_error)
+            estimated_hurst_value = estimator(sequence['values'])
+            expected_hurst_value = sequence['expected'][estimator_name]
+            max_expected_error = expected_hurst_value * self.max_error
+            self.assertAlmostEqual(estimated_hurst_value, expected_hurst_value, delta=max_expected_error)
+
+    def testRs(self):
+        self.estimatorTest(hurst.rs, 'rs')
 
     def testWavelet(self):
-        for sequence in self.sequences:
-            hurst_value = hurst.wavelet(sequence['noise'])
-            expected_hurst_value = sequence['hurst_value']
-            max_error = expected_hurst_value * .2
-            self.assertAlmostEqual(hurst_value, sequence['hurst_value'], delta=max_error)
+        self.estimatorTest(hurst.wavelet, 'wavelet')
