@@ -17,6 +17,7 @@ class TestApiCommunication(unittest.TestCase):
         "type": "object",
         "properties": {
             "timestamp": {"type": "integer"},
+            "version": {"type": "string"},
             "upUsage": {
                 "type": "number",
                 "minimum": 0.0,
@@ -41,7 +42,7 @@ class TestApiCommunication(unittest.TestCase):
             "hurstUpWavelet": {"type": "number"},
             "hurstDownRs": {"type": "number"},
             "hurstDownWavelet": {"type": "number"},
-            "ipAddress": {
+            "ip": {
                 "type": "string",
                 "format": "ipv4"
             }

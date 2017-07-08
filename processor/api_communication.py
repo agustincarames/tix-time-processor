@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 def prepare_results_for_api(results, ip):
     return {
         'timestamp': results['timestamp'],
+        'version': '1.0.0',
         'upUsage':  results['upstream']['usage'],
         'upQuality': results['upstream']['quality'],
         'downUsage': results['downstream']['usage'],
@@ -26,7 +27,7 @@ def prepare_results_for_api(results, ip):
         'hurstUpWavelet': results['upstream']['hurst']['wavelet'],
         'hurstDownRs': results['downstream']['hurst']['rs'],
         'hurstDownWavelet': results['downstream']['hurst']['wavelet'],
-        'ipAddress': ip
+        'ip': ip
     }
 
 
