@@ -1,8 +1,6 @@
-import base64
 import json
 import random
 import socket
-import struct
 import unittest
 
 import datetime
