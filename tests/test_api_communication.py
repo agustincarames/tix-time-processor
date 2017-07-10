@@ -43,8 +43,11 @@ class TestApiCommunication(unittest.TestCase):
             "hurstDownRs": {"type": "number"},
             "hurstDownWavelet": {"type": "number"},
             "ip": {
-                "type": "string",
-                "format": "ipv4"
+                "anyOf": [
+                    {"type": "string", "format": "ipv4"},
+                    {"type": "string", "format": "ipv6"},
+                    {"type": "string", "format": "hostname"}
+                ]
             }
         }
     }
