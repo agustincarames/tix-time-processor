@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 
 def observation_rtt_key_function(observation):
-    return observation['final_timestamp'] - observation['initial_timestamp']
+    return observation.final_timestamp - observation.initial_timestamp
 
 
 def upstream_time_function(observation, phi_function):
-    return observation['reception_timestamp'] - phi_function(observation['day_timestamp']) \
-           - observation['initial_timestamp']
+    return observation.reception_timestamp - phi_function(observation.day_timestamp) \
+           - observation.initial_timestamp
 
 
 def downstream_time_function(observation, phi_function):
-    return observation['final_timestamp'] - observation['sent_timestamp'] \
-           + phi_function(observation['day_timestamp'])
+    return observation.final_timestamp - observation.sent_timestamp \
+           + phi_function(observation.day_timestamp)
 
 
 def generate_histogram(observations, histogram_sorting_key_function):
@@ -101,7 +101,7 @@ def characterize_observations(observations, characterization_key_function):
 def divide_observations_into_minutes(observations):
     observations_per_minute = {}
     for observation in observations:
-        observation_datetime = datetime.fromtimestamp(observation['day_timestamp'], timezone.utc)
+        observation_datetime = datetime.fromtimestamp(observation.day_timestamp, timezone.utc)
         observation_minute = observation_datetime.replace(second=0, microsecond=0).timestamp()
         if observation_minute not in observations_per_minute:
             observations_per_minute[observation_minute] = []
@@ -130,9 +130,9 @@ def generate_observations_with_clocks_corrections(observations, tau,
                                                   downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
                                                   upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
     for observation in observations:
-        upstream_phi = observation['reception_timestamp'] - observation['initial_timestamp'] \
+        upstream_phi = observation.reception_timestamp - observation.initial_timestamp \
                        - upstream_serialization_time - tau
-        downstream_phi = observation['sent_timestamp'] - observation['final_timestamp'] \
+        downstream_phi = observation.sent_timestamp - observation.final_timestamp \
                          + downstream_serialization_time + tau
         estimated_phi = (downstream_phi + upstream_phi) / 2
         observation['upstream_phi'] = upstream_phi
@@ -182,13 +182,13 @@ def get_hurst_values(observations, phi_function):
 def get_meaningful_observations(observations):
     first_observation = observations[0]
     last_observation = observations[-1]
-    observations_delta = timedelta(seconds=(last_observation['day_timestamp'] - first_observation['day_timestamp']))
+    observations_delta = timedelta(seconds=(last_observation.day_timestamp - first_observation.day_timestamp))
     if observations_delta < MEANINGFUL_OBSERVATIONS_DELTA:
         raise ValueError('Meaningful observations time delta is lower than expected. Expected {}, got {}'\
                          .format(MEANINGFUL_OBSERVATIONS_DELTA, observations_delta))
     meaningful_threshold_timestamp = last_observation['day_timestamp'] - MEANINGFUL_OBSERVATIONS_DELTA.total_seconds()
     meaningful_observations = [observation for observation in observations
-                               if observation['day_timestamp'] > meaningful_threshold_timestamp]
+                               if observation.day_timestamp > meaningful_threshold_timestamp]
     return meaningful_observations
 
 
@@ -231,7 +231,7 @@ def get_quality(observations, upstream_hurst, downstream_hurst, phi_function):
 def process_observations(observations):
     log = logger.getChild('process_data_points')
     log.info('processing data points')
-    short_packets_observations = [observation for observation in observations if observation['type'] == 'S']
+    short_packets_observations = [observation for observation in observations if observation.type_identifier == 'S']
     tau, tau_threshold = characterize_observations(short_packets_observations, observation_rtt_key_function)
     phi_function = get_phi_function(short_packets_observations, tau)
     upstream_hurst, downstream_hurst = get_hurst_values(short_packets_observations, phi_function)
