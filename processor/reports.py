@@ -1,6 +1,6 @@
 import base64
 import json
-from operator import itemgetter
+from operator import attrgetter
 from os import listdir, unlink, mkdir
 
 from os.path import join, exists, isfile, islink
@@ -14,12 +14,13 @@ import jsonschema
 
 OBSERVATIONS_PER_REPORT = 60
 MINIMUM_OBSERVATIONS_QTY = 1024
+BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = int(MINIMUM_OBSERVATIONS_QTY / 2)
 MINIMUM_REPORTS_QTY = int(MINIMUM_OBSERVATIONS_QTY * 1.2 / OBSERVATIONS_PER_REPORT)
 BACK_UP_REPORTS_PROCESSING_THRESHOLD = 5
 REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 3
 
 BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
-FAILED_REPORTS_DIR_NAME = 'failed-results'
+FAILED_RESULTS_DIR_NAME = 'failed-results'
 FAILED_REPORT_FILE_NAME_TEMPLATE = 'failed-report-{timestamp}.json'
 
 logger = logging.getLogger(__name__)
@@ -133,44 +134,6 @@ def deserialize_observations(message):
     return observations
 
 
-JSON_REPORT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "from": {
-            "anyOf": [
-                {"type": "string", "format": "ipv4"},
-                {"type": "string", "format": "ipv6"},
-                {"type": "string", "format": "hostname"}
-            ]
-        },
-        "to": {
-            "anyOf": [
-                {"type": "string", "format": "ipv4"},
-                {"type": "string", "format": "ipv6"},
-                {"type": "string", "format": "hostname"}
-            ]
-        },
-        "type": {
-            "type": "string",
-            "enum": ["S", "L"]
-        },
-        "initialTimestamp": {"type": "integer"},
-        "receivedTimestamp": {"type": "integer"},
-        "sentTimestamp": {"type": "integer"},
-        "finalTimestamp": {"type": "integer"},
-        "publicKey": {"type": "string"},
-        "message": {"type": "string"},
-        "signature": {"type": "string"},
-        "userId": {"type": "integer"},
-        "installationId": {"type": "integer"}
-    },
-    "required": [
-        "from", "to", "type",
-        "initialTimestamp", "receivedTimestamp", "sentTimestamp", "finalTimestamp",
-        "publicKey", "message", "signature",
-        "userId", "installationId"
-    ]
-}
 JSON_FIELDS_TRANSLATIONS = [
     FieldTranslation("from", "from_dir"),
     FieldTranslation("to", "to_dir"),
@@ -200,7 +163,47 @@ class ReportJSONEncoder(json.JSONEncoder):
 
 
 class ReportJSONDecoder(json.JSONDecoder):
-    def json_to_object(self, json_dict):
+    JSON_REPORT_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "from": {
+                "anyOf": [
+                    {"type": "string", "format": "ipv4"},
+                    {"type": "string", "format": "ipv6"},
+                    {"type": "string", "format": "hostname"}
+                ]
+            },
+            "to": {
+                "anyOf": [
+                    {"type": "string", "format": "ipv4"},
+                    {"type": "string", "format": "ipv6"},
+                    {"type": "string", "format": "hostname"}
+                ]
+            },
+            "type": {
+                "type": "string",
+                "enum": ["S", "L"]
+            },
+            "initialTimestamp": {"type": "integer"},
+            "receivedTimestamp": {"type": "integer"},
+            "sentTimestamp": {"type": "integer"},
+            "finalTimestamp": {"type": "integer"},
+            "publicKey": {"type": "string"},
+            "message": {"type": "string"},
+            "signature": {"type": "string"},
+            "userId": {"type": "integer"},
+            "installationId": {"type": "integer"}
+        },
+        "required": [
+            "from", "to", "type",
+            "initialTimestamp", "receivedTimestamp", "sentTimestamp", "finalTimestamp",
+            "publicKey", "message", "signature",
+            "userId", "installationId"
+        ]
+    }
+
+    @staticmethod
+    def json_to_object(json_dict):
         json_dict_keys = json_dict.keys()
         for key in json_dict_keys:
             new_key = inflection.underscore(key)
@@ -213,7 +216,7 @@ class ReportJSONDecoder(json.JSONDecoder):
 
     def dict_to_object(self, d):
         try:
-            jsonschema.validate(d, JSON_REPORT_SCHEMA)
+            jsonschema.validate(d, self.JSON_REPORT_SCHEMA)
             inst = self.json_to_object(d)
         except jsonschema.ValidationError:
             inst = d
@@ -224,11 +227,26 @@ class ReportJSONDecoder(json.JSONDecoder):
 
 
 class Report:
+    @staticmethod
+    def load(report_file_path):
+        with open(report_file_path) as fp:
+            report = json.load(fp, cls=ReportJSONDecoder)
+        report.file_path = report_file_path
+        return report
+
+    @staticmethod
+    def get_report_gap(report):
+        return report.observations[-1].day_timestamp - report.observations[0].day_timestamp
+
+    @staticmethod
+    def get_gap_between_reports(second_report, first_report):
+        return second_report.observations[0].day_timestamp - first_report.observations[0].day_timestamp
+
     def __init__(self,
                  from_dir, to_dir, packet_type,
                  initial_timestamp, received_timestamp, sent_timestamp, final_timestamp,
                  public_key, observations, signature,
-                 user_id, installation_id):
+                 user_id, installation_id, file_path=None):
         self.from_dir = from_dir
         self.to_dir = to_dir
         self.packet_type = packet_type
@@ -241,6 +259,7 @@ class Report:
         self.signature = signature
         self.user_id = user_id
         self.installation_id = installation_id
+        self.file_path = file_path
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -248,157 +267,143 @@ class Report:
         return NotImplemented
 
 
-class ReportFileMetadata:
-    def __init__(self, file_path, file_name):
-        self.file_path = file_path
-        self.file_name = file_name
+class ReportHandler:
+    MINIMUM_OBSERVATIONS_QTY = 1024
+    BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = int(MINIMUM_OBSERVATIONS_QTY / 2)
+    REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 3
 
+    BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
+    FAILED_RESULTS_DIR_NAME = 'failed-results'
+    FAILED_REPORT_FILE_NAME_TEMPLATE = 'failed-report-{timestamp}.json'
 
-def get_reports_files(installation_dir_path):
-    reports_files = []
-    for file_name in sorted(listdir(installation_dir_path)):
-        if file_name.endswith('.json'):
-            file_path = join(installation_dir_path, file_name)
+    @staticmethod
+    def max_gap_in_reports(reports):
+        gap = 0
+        for index in range(1, len(reports)):
+            reports_gap = Report.get_gap_between_reports(reports[index], reports[index - 1])
+            gap = max([gap, reports_gap])
+        last_report_gap = Report.get_report_gap(reports[-1])
+        gap = max([gap, last_report_gap])
+        return gap
+
+    @staticmethod
+    def delete_files_before_last_gap_occurrence(gap, reports):
+        reports_to_delete = []
+        if Report.get_report_gap(reports[-1]) == gap:
+            reports_to_delete = reports
+        else:
+            for index in sorted(range(1, len(reports)), reverse=True):
+                reports_gap = Report.get_gap_between_reports(reports[index], reports[index - 1])
+                if gap == reports_gap:
+                    reports_to_delete = reports[:index]
+                    break
+        for report in reports_to_delete:
+            unlink(report.file_path)
+
+    @staticmethod
+    def fetch_reports(reports_dir_path, last_first=False, reports_quantity=None):
+        reports = []
+        reports_files = sorted(listdir(reports_dir_path), reverse=last_first)
+        if reports_quantity is not None:
+            reports_files = reports_files[:reports_quantity]
+        for file_name in reports_files:
+            if file_name.endswith('.json'):
+                file_path = join(reports_dir_path, file_name)
+                if isfile(file_path) and not islink(file_path):
+                    report_object = Report.load(file_path)
+                    reports.append(report_object)
+        return reports
+
+    @staticmethod
+    def calculate_observations_quantity(reports):
+        return sum([len(report.observations) for report in reports])
+
+    @staticmethod
+    def collect_observations(reports):
+        data_per_ip = {}
+        for report in reports:
+            ip = report.from_dir
+            if ip not in data_per_ip:
+                data_per_ip[ip] = list()
+            data_per_ip[ip].extend(report.observations)
+        for ip, observations in data_per_ip.items():
+            if len(observations) >= MINIMUM_OBSERVATIONS_QTY:
+                return ip, observations
+        raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(MINIMUM_OBSERVATIONS_QTY))
+
+    def __init__(self, installation_dir_path):
+        self.installation_dir_path = installation_dir_path
+        self.back_up_reports_dir_path = join(self.installation_dir_path, self.BACK_UP_REPORTS_DIR_NAME)
+        self.failed_results_dir_path = join(self.installation_dir_path, self.FAILED_RESULTS_DIR_NAME)
+
+    def get_unprocessed_reports(self):
+        return self.fetch_reports(self.installation_dir_path, last_first=False)
+
+    def back_up_dir_is_empty(self):
+        return not exists(self.back_up_reports_dir_path) or len(listdir(self.back_up_reports_dir_path)) == 0
+
+    def get_back_up_reports(self, reports_quantity):
+        return self.fetch_reports(self.back_up_reports_dir_path, last_first=True, reports_quantity=reports_quantity)
+
+    def clean_back_up_dir(self):
+        for file_name in listdir(self.back_up_reports_dir_path):
+            file_path = join(self.back_up_reports_dir_path, file_name)
             if isfile(file_path) and not islink(file_path):
-                reports_files.append(ReportFileMetadata(file_path, file_name))
-    return reports_files
+                unlink(file_path)
 
-
-def back_up_dir_is_empty(installation_dir_path):
-    back_up_reports_path = join(installation_dir_path, BACK_UP_REPORTS_DIR_NAME)
-    return not exists(back_up_reports_path) or len(listdir(back_up_reports_path)) == 0
-
-
-def get_back_up_reports(installation_dir_path, reports_quantity):
-    back_up_reports_path = join(installation_dir_path, BACK_UP_REPORTS_DIR_NAME)
-    back_up_reports = []
-    for file_name in sorted(listdir(back_up_reports_path), reverse=True)[:reports_quantity]:
-        if file_name.endswith('.json'):
-            file_path = join(back_up_reports_path, file_name)
-            if isfile(file_path) and not islink(file_path):
-                back_up_reports.append(ReportFileMetadata(file_path, file_name))
-    return back_up_reports
-
-
-def clean_back_up_dir(installation_dir_path):
-    back_up_reports_path = join(installation_dir_path, BACK_UP_REPORTS_DIR_NAME)
-    for file_name in listdir(back_up_reports_path):
-        file_path = join(back_up_reports_path, file_name)
-        if isfile(file_path) and not islink(file_path):
-            unlink(file_path)
-
-
-def get_report_object(report_file):
-    with open(report_file.file_path) as fp:
-        report = json.load(fp, cls=ReportJSONDecoder)
-    return report
-
-
-def get_report_object_message_bytes(report_object):
-    message_bytes = base64.b64decode(report_object.message)
-    return message_bytes
-
-
-def get_report_gap(report_file):
-    report = get_report_object(report_file)
-    return report.observations[-1].day_timestamp - report.observations[0].day_timestamp
-
-
-def get_gap_between_reports(second_report_file, first_report_file):
-    second_report = get_report_object(second_report_file)
-    first_report = get_report_object(first_report_file)
-    return second_report.observations[0].day_timestamp - first_report.observations[0].day_timestamp
-
-
-def max_gap_in_reports(reports_files):
-    gap = 0
-    for index in range(1, len(reports_files)):
-        reports_gap = get_gap_between_reports(reports_files[index], reports_files[index - 1])
-        gap = max([gap, reports_gap])
-    last_report_gap = get_report_gap(reports_files[-1])
-    gap = max([gap, last_report_gap])
-    return gap
-
-
-def delete_files_before_last_gap_occurrence(gap, reports_files):
-    reports_files_to_delete = []
-    if get_report_gap(reports_files[-1]) == gap:
-        reports_files_to_delete = reports_files
-    else:
-        for index in sorted(range(1, len(reports_files)), reverse=True):
-            reports_gap = get_gap_between_reports(reports_files[index], reports_files[index - 1])
-            if gap == reports_gap:
-                reports_files_to_delete = reports_files[:index]
-                break
-    for report_file in reports_files_to_delete:
-        unlink(report_file.file_path)
-
-
-def get_processable_report_files(installation_dir_path):
-    reports_files = get_reports_files(installation_dir_path)
-    if len(reports_files) < MINIMUM_REPORTS_QTY:
-        # If there are less than the minimum reports needed to process in the installation directory and there are
-        # no reports in the back up directory, then we assume that this might be a fresh process and leave
-        if back_up_dir_is_empty(installation_dir_path):
+    def get_processable_reports(self):
+        reports = self.get_unprocessed_reports()
+        observations_qty = self.calculate_observations_quantity(reports)
+        if observations_qty < MINIMUM_OBSERVATIONS_QTY:
+            # If there are less than the minimum observations needed to process in the installation directory and there
+            # are no reports in the back up directory, then we assume that this might be a fresh process and leave
+            if self.back_up_dir_is_empty():
+                return []
+            # If there are less than the minimum observations needed to process in the installation directory
+            # and the amount of back up reports needed for processing is too much we simply establish that there
+            # was a connection loss or something that renders the last minutes impossible to measure.
+            # So we clean the back up files, but we leave the main reports in hopes that there's a burst with which we
+            # can work
+            needed_back_up_observations = self.MINIMUM_OBSERVATIONS_QTY - observations_qty
+            if needed_back_up_observations > self.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD:
+                self.clean_back_up_dir()
+                return []
+            back_up_reports = self.get_back_up_reports(reports_quantity=None)
+            needed_back_up_reports = []
+            while needed_back_up_observations > 0:
+                back_up_report = back_up_reports.pop()
+                needed_back_up_reports.append(back_up_report)
+                needed_back_up_observations -= len(back_up_report.observation)
+            reports.extend(needed_back_up_reports)
+            reports.sort(key=attrgetter('day_timestamp'))
+        # If there is gap between observations among the reports that makes it impossible to calculate, we simply delete
+        # everything in the back up folder and all the reports until the one where the gap occurs. We also delete that
+        # one.
+        gap = self.max_gap_in_reports(reports)
+        if gap > REPORTS_GAP_THRESHOLD:
+            self.delete_files_before_last_gap_occurrence(reports, gap)
+            self.clean_back_up_dir()
             return []
-        # If there are less than the minimum reports needed to process in the installation directory
-        # and the amount of back up reports needed for processing is too much we simply establish that there
-        # was a connection loss or something that renders the last minutes impossible to measure.
-        # So we clean the back up files, but we leave the main reports in hopes that there's a burst with which we can
-        # work
-        needed_back_up_reports = MINIMUM_REPORTS_QTY - len(reports_files)
-        if needed_back_up_reports > BACK_UP_REPORTS_PROCESSING_THRESHOLD:
-            clean_back_up_dir(installation_dir_path)
-            return []
-        back_up_reports = get_back_up_reports(installation_dir_path, MINIMUM_REPORTS_QTY - len(reports_files))
-        reports_files.extend(back_up_reports)
-        reports_files.sort(key=itemgetter(1))
-    # If there is gap between observations among the reports that makes it impossible to calculate, we simply delete
-    # everything in the back up folder and all the reports until the one where the gap occurs. We also delete that one.
-    gap = max_gap_in_reports(reports_files)
-    if gap > REPORTS_GAP_THRESHOLD:
-        delete_files_before_last_gap_occurrence(reports_files, gap)
-        clean_back_up_dir(installation_dir_path)
-        return []
-    return reports_files
+        return reports
 
+    def get_processable_observations(self):
+        log = logger.getChild('get_datapoints')
+        log.info('getting datapoints')
+        reports = self.get_processable_reports()
+        observations = self.collect_observations(reports)
+        return observations
 
-def extract_processable_data(reports_files_metadata):
-    data_per_ip = {}
-    for report_file_metadata in reports_files_metadata:
-        report_object = get_report_object(report_file_metadata)
-        ip = report_object.from_dir
-        if ip not in data_per_ip:
-            data_per_ip[ip] = list()
-        data_per_ip[ip].extend(report_object.observations)
-    for ip, observations in data_per_ip.items():
-        if len(observations) >= MINIMUM_OBSERVATIONS_QTY:
-            return ip, observations
-    raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(MINIMUM_OBSERVATIONS_QTY))
+    def failed_results_dir_is_empty(self):
+        return not exists(self.failed_results_dir_path) or len(listdir(self.failed_results_dir_path)) == 0
 
-
-def get_data(installation_dir_path):
-    log = logger.getChild('get_datapoints')
-    log.info('getting datapoints')
-    reports_files = get_processable_report_files(installation_dir_path)
-    data = extract_processable_data(reports_files)
-    return data
-
-
-def failed_results_dir_is_empty(installation_dir_path):
-    failed_results_dir_path = join(installation_dir_path, FAILED_REPORTS_DIR_NAME)
-    return not exists(failed_results_dir_path) or len(listdir(failed_results_dir_path)) == 0
-
-
-def back_up_failed_results(installation_dir_path, results, ip):
-    failed_results_dir_path = join(installation_dir_path, FAILED_REPORTS_DIR_NAME)
-    json_failed_results = {
-        'results': results,
-        'ip': ip
-    }
-    if not exists(failed_results_dir_path):
-        mkdir(failed_results_dir_path)
-    failed_result_file_name = FAILED_REPORT_FILE_NAME_TEMPLATE.format(timestamp=results['timestamp'])
-    failed_result_file_path = join(failed_results_dir_path, failed_result_file_name)
-    with open(failed_result_file_path) as failed_result_file:
-        json.dump(json_failed_results, failed_result_file)
+    def back_up_failed_results(self, results, ip):
+        json_failed_results = {
+            'results': results,
+            'ip': ip
+        }
+        if not exists(self.failed_results_dir_path):
+            mkdir(self.failed_results_dir_path)
+        failed_result_file_name = self.FAILED_REPORT_FILE_NAME_TEMPLATE.format(timestamp=results['timestamp'])
+        failed_result_file_path = join(self.failed_results_dir_path, failed_result_file_name)
+        with open(failed_result_file_path) as failed_result_file:
+            json.dump(json_failed_results, failed_result_file)
