@@ -15,6 +15,7 @@ DEFAULT_REPORT_DELTA = datetime.timedelta(minutes=1)
 DEFAULT_OBSERVATIONS_DELTA = datetime.timedelta(seconds=1)
 NANOS_IN_A_DAY = 24 * 60 * 60 * (10 ** 9)
 
+
 def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(('8.8.8.8', 80))
