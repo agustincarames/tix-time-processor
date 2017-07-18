@@ -7,6 +7,7 @@ import unittest
 import datetime
 
 import jsonschema
+from os import unlink
 
 from processor import reports
 
@@ -78,22 +79,27 @@ class TestReports(unittest.TestCase):
         other_report = json.loads(json_report_string, cls=reports.ReportJSONDecoder)
         self.assertEqual(report, other_report)
         naive_json_report = json.loads(json_report_string)
-        jsonschema.validate(naive_json_report, reports.ReportJSONDecoder.JSON_REPORT_SCHEMA)
+        jsonschema.validate(naive_json_report, reports.JSON_REPORT_SCHEMA)
 
 
 class TestReport(unittest.TestCase):
     def test_load(self):
-        with tempfile.NamedTemporaryFile() as report_file:
-            original_report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
-            json.dump(original_report, report_file, cls=reports.ReportJSONEncoder)
-            report_file_path = report_file.name
-            loaded_report = reports.Report.load(report_file_path)
-            self.assertEqual(original_report, loaded_report)
+        report_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        original_report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
+        json.dump(original_report, report_file, cls=reports.ReportJSONEncoder)
+        report_file_path = report_file.name
+        report_file.close()
+        loaded_report = reports.Report.load(report_file_path)
+        self.assertIsNotNone(loaded_report.file_path)
+        self.assertNotEquals(original_report, loaded_report)
+        loaded_report.file_path = None
+        self.assertEquals(original_report, loaded_report)
+        unlink(report_file_path)
 
     def test_get_report_gap(self):
         report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
         gap = reports.Report.get_report_gap(report)
-        expected_gap = DEFAULT_REPORT_DELTA.microseconds * 10 ** 3
+        expected_gap = DEFAULT_REPORT_DELTA.total_seconds() - 1
         self.assertEqual(gap, expected_gap)
 
     def test_get_gap_between_reports(self):
@@ -102,7 +108,7 @@ class TestReport(unittest.TestCase):
         report1 = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID, current_time)
         report2 = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID, current_time + reports_gap)
         gap = reports.Report.get_gap_between_reports(report2, report1)
-        expected_gap = reports_gap.microseconds * 10 ** 3
+        expected_gap = reports_gap.total_seconds()
         self.assertEqual(gap, expected_gap)
 
 

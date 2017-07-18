@@ -141,6 +141,45 @@ JSON_FIELDS_TRANSLATIONS = [
     FieldTranslation("message", "observations", deserialize_observations, serialize_observations)
 ]
 
+JSON_REPORT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "from": {
+            "anyOf": [
+                {"type": "string", "format": "ipv4"},
+                {"type": "string", "format": "ipv6"},
+                {"type": "string", "format": "hostname"}
+            ]
+        },
+        "to": {
+            "anyOf": [
+                {"type": "string", "format": "ipv4"},
+                {"type": "string", "format": "ipv6"},
+                {"type": "string", "format": "hostname"}
+            ]
+        },
+        "type": {
+            "type": "string",
+            "enum": ["S", "L"]
+        },
+        "initialTimestamp": {"type": "integer"},
+        "receivedTimestamp": {"type": "integer"},
+        "sentTimestamp": {"type": "integer"},
+        "finalTimestamp": {"type": "integer"},
+        "publicKey": {"type": "string"},
+        "message": {"type": "string"},
+        "signature": {"type": "string"},
+        "userId": {"type": "integer"},
+        "installationId": {"type": "integer"}
+    },
+    "required": [
+        "from", "to", "type",
+        "initialTimestamp", "receivedTimestamp", "sentTimestamp", "finalTimestamp",
+        "publicKey", "message", "signature",
+        "userId", "installationId"
+    ]
+}
+
 
 class ReportJSONEncoder(json.JSONEncoder):
     def object_to_json(self, report_object):
@@ -152,6 +191,12 @@ class ReportJSONEncoder(json.JSONEncoder):
         for field in report_dict_fields:
             inflexed_key = inflection.camelize(field, False)
             report_dict[inflexed_key] = report_dict.pop(field)
+        fields_to_delete = []
+        for field in report_dict_fields:
+            if field not in JSON_REPORT_SCHEMA['required']:
+                fields_to_delete.append(field)
+        for field in fields_to_delete:
+            report_dict.pop(field)
         return report_dict
 
     def default(self, obj):
@@ -163,45 +208,6 @@ class ReportJSONEncoder(json.JSONEncoder):
 
 
 class ReportJSONDecoder(json.JSONDecoder):
-    JSON_REPORT_SCHEMA = {
-        "type": "object",
-        "properties": {
-            "from": {
-                "anyOf": [
-                    {"type": "string", "format": "ipv4"},
-                    {"type": "string", "format": "ipv6"},
-                    {"type": "string", "format": "hostname"}
-                ]
-            },
-            "to": {
-                "anyOf": [
-                    {"type": "string", "format": "ipv4"},
-                    {"type": "string", "format": "ipv6"},
-                    {"type": "string", "format": "hostname"}
-                ]
-            },
-            "type": {
-                "type": "string",
-                "enum": ["S", "L"]
-            },
-            "initialTimestamp": {"type": "integer"},
-            "receivedTimestamp": {"type": "integer"},
-            "sentTimestamp": {"type": "integer"},
-            "finalTimestamp": {"type": "integer"},
-            "publicKey": {"type": "string"},
-            "message": {"type": "string"},
-            "signature": {"type": "string"},
-            "userId": {"type": "integer"},
-            "installationId": {"type": "integer"}
-        },
-        "required": [
-            "from", "to", "type",
-            "initialTimestamp", "receivedTimestamp", "sentTimestamp", "finalTimestamp",
-            "publicKey", "message", "signature",
-            "userId", "installationId"
-        ]
-    }
-
     @staticmethod
     def json_to_object(json_dict):
         json_dict_keys = json_dict.keys()
@@ -216,7 +222,7 @@ class ReportJSONDecoder(json.JSONDecoder):
 
     def dict_to_object(self, d):
         try:
-            jsonschema.validate(d, self.JSON_REPORT_SCHEMA)
+            jsonschema.validate(d, JSON_REPORT_SCHEMA)
             inst = self.json_to_object(d)
         except jsonschema.ValidationError:
             inst = d
