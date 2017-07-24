@@ -1,7 +1,9 @@
 import base64
+import datetime
 import json
+import os
 from operator import attrgetter
-from os import listdir, unlink, mkdir
+from os import listdir, unlink, mkdir, rename
 
 from os.path import join, exists, isfile, islink
 
@@ -11,17 +13,6 @@ import struct
 
 import inflection
 import jsonschema
-
-OBSERVATIONS_PER_REPORT = 60
-MINIMUM_OBSERVATIONS_QTY = 1024
-BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = int(MINIMUM_OBSERVATIONS_QTY / 2)
-MINIMUM_REPORTS_QTY = int(MINIMUM_OBSERVATIONS_QTY * 1.2 / OBSERVATIONS_PER_REPORT)
-BACK_UP_REPORTS_PROCESSING_THRESHOLD = 5
-REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 3
-
-BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
-FAILED_RESULTS_DIR_NAME = 'failed-results'
-FAILED_REPORT_FILE_NAME_TEMPLATE = 'failed-report-{timestamp}.json'
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +65,15 @@ class Observation:
         if isinstance(other, self.__class__):
             return self.__dict__ == other.__dict__
         return NotImplemented
+
+    def __hash__(self):
+        return hash((self.day_timestamp,
+                     self.type_identifier,
+                     self.packet_size,
+                     self.initial_timestamp,
+                     self.reception_timestamp,
+                     self.sent_timestamp,
+                     self.final_timestamp))
 
 
 class SerializedObservationField:
@@ -272,11 +272,26 @@ class Report:
             return self.__dict__ == other.__dict__
         return NotImplemented
 
+    def __hash__(self):
+        return hash((self.from_dir,
+                     self.to_dir,
+                     self.packet_type,
+                     self.initial_timestamp,
+                     self.received_timestamp,
+                     self.sent_timestamp,
+                     self.final_timestamp,
+                     self.public_key,
+                     self.observations,
+                     self.signature,
+                     self.user_id,
+                     self.installation_id))
+
 
 class ReportHandler:
     MINIMUM_OBSERVATIONS_QTY = 1024
-    BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = int(MINIMUM_OBSERVATIONS_QTY / 2)
-    REPORTS_GAP_THRESHOLD = OBSERVATIONS_PER_REPORT * 3
+    MAXIMUM_OBSERVATIONS_QTY = 1200
+    BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = 540
+    GAP_THRESHOLD = int(datetime.timedelta(minutes=5).total_seconds())
 
     BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
     FAILED_RESULTS_DIR_NAME = 'failed-results'
@@ -293,18 +308,26 @@ class ReportHandler:
         return gap
 
     @staticmethod
-    def delete_files_before_last_gap_occurrence(gap, reports):
-        reports_to_delete = []
+    def divide_gapped_reports(reports, gap):
+        reports_before = list()
+        reports_after = list()
         if Report.get_report_gap(reports[-1]) == gap:
-            reports_to_delete = reports
+            reports_after.append(reports[-1])
+            reports_before = reports[:-1]
         else:
             for index in sorted(range(1, len(reports)), reverse=True):
                 reports_gap = Report.get_gap_between_reports(reports[index], reports[index - 1])
                 if gap == reports_gap:
-                    reports_to_delete = reports[:index]
+                    reports_before = reports[:index]
+                    reports_after = reports[index:]
                     break
-        for report in reports_to_delete:
-            unlink(report.file_path)
+        return reports_before, reports_after
+
+    @staticmethod
+    def delete_reports_files(reports):
+        for report in reports:
+            if exists(report.file_path):
+                unlink(report.file_path)
 
     @staticmethod
     def fetch_reports(reports_dir_path, last_first=False, reports_quantity=None):
@@ -324,23 +347,27 @@ class ReportHandler:
     def calculate_observations_quantity(reports):
         return sum([len(report.observations) for report in reports])
 
-    @staticmethod
-    def collect_observations(reports):
+    @classmethod
+    def collect_observations(cls, reports):
         data_per_ip = {}
         for report in reports:
             ip = report.from_dir
             if ip not in data_per_ip:
-                data_per_ip[ip] = list()
+                data_per_ip[ip] = set()
             data_per_ip[ip].extend(report.observations)
         for ip, observations in data_per_ip.items():
-            if len(observations) >= MINIMUM_OBSERVATIONS_QTY:
+            if len(observations) >= cls.MINIMUM_OBSERVATIONS_QTY:
                 return ip, observations
-        raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(MINIMUM_OBSERVATIONS_QTY))
+        raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(cls.MINIMUM_OBSERVATIONS_QTY))
 
     def __init__(self, installation_dir_path):
         self.installation_dir_path = installation_dir_path
         self.back_up_reports_dir_path = join(self.installation_dir_path, self.BACK_UP_REPORTS_DIR_NAME)
+        if not exists(self.back_up_reports_dir_path):
+            mkdir(self.back_up_reports_dir_path)
         self.failed_results_dir_path = join(self.installation_dir_path, self.FAILED_RESULTS_DIR_NAME)
+        if not exists(self.failed_results_dir_path):
+            mkdir(self.failed_results_dir_path)
 
     def get_unprocessed_reports(self):
         return self.fetch_reports(self.installation_dir_path, last_first=False)
@@ -349,7 +376,7 @@ class ReportHandler:
         return not exists(self.back_up_reports_dir_path) or len(listdir(self.back_up_reports_dir_path)) == 0
 
     def get_back_up_reports(self, reports_quantity):
-        return self.fetch_reports(self.back_up_reports_dir_path, last_first=True, reports_quantity=reports_quantity)
+        return self.fetch_reports(self.back_up_reports_dir_path, last_first=False, reports_quantity=reports_quantity)
 
     def clean_back_up_dir(self):
         for file_name in listdir(self.back_up_reports_dir_path):
@@ -357,39 +384,71 @@ class ReportHandler:
             if isfile(file_path) and not islink(file_path):
                 unlink(file_path)
 
+    def get_gapless_reports(self, reports):
+        gap = self.max_gap_in_reports(reports)
+        if self.GAP_THRESHOLD < gap:
+            reports_before, reports_after = self.divide_gapped_reports(reports, gap)
+            return reports_before
+        else:
+            return reports
+
+    def clean_reports(self, reports):
+        gapless_reports = self.get_gapless_reports(reports)
+        observations_qty = self.calculate_observations_quantity(gapless_reports)
+        if self.MAXIMUM_OBSERVATIONS_QTY < observations_qty:
+            clean_reports = self.drop_unnecessary_reports(gapless_reports)
+        else:
+            clean_reports = gapless_reports
+        return clean_reports
+
+    def add_back_up_reports(self, reports):
+        # If there are less than the minimum observations needed to process in the installation directory and there
+        # are no reports in the back up directory, then we assume that this might be a fresh process and leave
+        if self.back_up_dir_is_empty():
+            return reports
+        # If there are less than the minimum observations needed to process in the installation directory
+        # and the amount of back up reports needed for processing is too much we simply establish that there
+        # was a connection loss or something that renders the last minutes impossible to measure.
+        # So we clean the back up files, but we leave the main reports in hopes that there's a burst with which we
+        # can work
+        observations_qty = self.calculate_observations_quantity(reports)
+        needed_back_up_observations = self.MINIMUM_OBSERVATIONS_QTY - observations_qty
+        if needed_back_up_observations > self.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD:
+            self.clean_back_up_dir()
+            return reports
+        back_up_reports = self.get_back_up_reports(reports_quantity=None)
+        needed_back_up_reports = []
+        while needed_back_up_observations > 0:
+            back_up_report = back_up_reports.pop()
+            needed_back_up_reports.append(back_up_report)
+            needed_back_up_observations -= len(back_up_report.observations)
+        reports.extend(needed_back_up_reports)
+        reports.sort(key=lambda report: report.observations[0].day_timestamp)
+        return reports
+
+    def drop_unnecessary_reports(self, reports):
+        observations_qty = 0
+        processable_reports = list()
+        while observations_qty < self.MAXIMUM_OBSERVATIONS_QTY:
+            report = reports.pop(0)
+            processable_reports.append(report)
+            observations_qty = self.calculate_observations_quantity(processable_reports)
+        return processable_reports
+
     def get_processable_reports(self):
         reports = self.get_unprocessed_reports()
-        observations_qty = self.calculate_observations_quantity(reports)
-        if observations_qty < MINIMUM_OBSERVATIONS_QTY:
-            # If there are less than the minimum observations needed to process in the installation directory and there
-            # are no reports in the back up directory, then we assume that this might be a fresh process and leave
-            if self.back_up_dir_is_empty():
-                return []
-            # If there are less than the minimum observations needed to process in the installation directory
-            # and the amount of back up reports needed for processing is too much we simply establish that there
-            # was a connection loss or something that renders the last minutes impossible to measure.
-            # So we clean the back up files, but we leave the main reports in hopes that there's a burst with which we
-            # can work
-            needed_back_up_observations = self.MINIMUM_OBSERVATIONS_QTY - observations_qty
-            if needed_back_up_observations > self.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD:
+        clean_reports = self.clean_reports(reports)
+        observations_qty = self.calculate_observations_quantity(clean_reports)
+        if observations_qty < self.MINIMUM_OBSERVATIONS_QTY:
+            reports_with_back_up = self.add_back_up_reports(clean_reports)
+            clean_reports_with_back_up = self.clean_reports(reports_with_back_up)
+            observations_qty = self.calculate_observations_quantity(clean_reports_with_back_up)
+            if self.MINIMUM_OBSERVATIONS_QTY <= observations_qty:
+                reports = clean_reports_with_back_up
+            else:
+                self.delete_reports_files(clean_reports)
                 self.clean_back_up_dir()
-                return []
-            back_up_reports = self.get_back_up_reports(reports_quantity=None)
-            needed_back_up_reports = []
-            while needed_back_up_observations > 0:
-                back_up_report = back_up_reports.pop()
-                needed_back_up_reports.append(back_up_report)
-                needed_back_up_observations -= len(back_up_report.observation)
-            reports.extend(needed_back_up_reports)
-            reports.sort(key=attrgetter('day_timestamp'))
-        # If there is gap between observations among the reports that makes it impossible to calculate, we simply delete
-        # everything in the back up folder and all the reports until the one where the gap occurs. We also delete that
-        # one.
-        gap = self.max_gap_in_reports(reports)
-        if gap > REPORTS_GAP_THRESHOLD:
-            self.delete_files_before_last_gap_occurrence(reports, gap)
-            self.clean_back_up_dir()
-            return []
+                reports = list()
         return reports
 
     def get_processable_observations(self):
@@ -399,6 +458,15 @@ class ReportHandler:
         observations = self.collect_observations(reports)
         return observations
 
+    def back_up_reports(self, reports):
+        for report in reports:
+            if not report.file_path.startswith(self.back_up_reports_dir_path) and exists(report.file_path):
+                split_file_path = report.file_path.split(os.sep)
+                report_file_name = split_file_path[-1]
+                new_report_file_path = join(self.back_up_reports_dir_path, report_file_name)
+                rename(report.file_path, new_report_file_path)
+                report.file_path = new_report_file_path
+
     def failed_results_dir_is_empty(self):
         return not exists(self.failed_results_dir_path) or len(listdir(self.failed_results_dir_path)) == 0
 
@@ -407,8 +475,6 @@ class ReportHandler:
             'results': results,
             'ip': ip
         }
-        if not exists(self.failed_results_dir_path):
-            mkdir(self.failed_results_dir_path)
         failed_result_file_name = self.FAILED_REPORT_FILE_NAME_TEMPLATE.format(timestamp=results['timestamp'])
         failed_result_file_path = join(self.failed_results_dir_path, failed_result_file_name)
         with open(failed_result_file_path) as failed_result_file:
