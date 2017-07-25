@@ -307,11 +307,12 @@ class ReportHandler:
     @staticmethod
     def max_gap_in_reports(reports):
         gap = 0
-        for index in range(1, len(reports)):
-            reports_gap = Report.get_gap_between_reports(reports[index], reports[index - 1])
-            gap = max([gap, reports_gap])
-        last_report_gap = Report.get_report_gap(reports[-1])
-        gap = max([gap, last_report_gap])
+        if len(reports) > 0:
+            for index in range(1, len(reports)):
+                reports_gap = Report.get_gap_between_reports(reports[index], reports[index - 1])
+                gap = max([gap, reports_gap])
+            last_report_gap = Report.get_report_gap(reports[-1])
+            gap = max([gap, last_report_gap])
         return gap
 
     @staticmethod

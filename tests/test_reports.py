@@ -159,7 +159,7 @@ class TestReportsHandler(unittest.TestCase):
                           expected_failed_results_path)
         self.assertTrue(exists(self.reports_handler.failed_results_dir_path))
 
-    def test_return_reports_if_enough_processable_reports(self):
+    def test_returns_reports_if_enough_processable_reports(self):
         expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
                                                                 total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
                                                                 start_time=datetime.datetime.now(tz=datetime.timezone.utc),
@@ -168,7 +168,7 @@ class TestReportsHandler(unittest.TestCase):
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertListEqual(processable_reports, expected_processable_reports)
 
-    def test_return_reports_if_not_enough_processable_but_back_up(self):
+    def test_returns_reports_if_not_enough_processable_but_back_up(self):
         processable_observations_qty = reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY - \
                                        reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD - 1
         back_up_observations_qty = reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD
@@ -192,7 +192,7 @@ class TestReportsHandler(unittest.TestCase):
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertListEqual(processable_reports, expected_reports)
 
-    def test_not_return_reports_if_gap_threshold_exceeded_in_reports(self):
+    def test_doesnt_return_reports_if_gap_threshold_exceeded_in_reports(self):
         first_processable_reports_qty = reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2
         second_processable_reports_qty = reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2
         first_processable_reports_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -212,7 +212,7 @@ class TestReportsHandler(unittest.TestCase):
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
 
-    def test_not_return_reports_if_not_enough_processable_reports_but_enough_back_up_reports(self):
+    def test_doesnt_return_reports_if_not_enough_processable_reports_and_not_enough_back_up_reports(self):
         processable_observations_qty = (reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY -
                                         reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD - 1) / 2
         back_up_observations_qty = reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY
@@ -235,8 +235,11 @@ class TestReportsHandler(unittest.TestCase):
         expected_reports.extend(expected_processable_reports)
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
+        self.assertTrue(self.reports_handler.back_up_dir_is_empty())
+        processable_reports = self.reports_handler.get_processable_reports()
+        self.assertEquals(len(processable_reports), 0)
 
-    def test_only_returns_mox_observations(self):
+    def test_only_returns_max_observations_reports(self):
         processable_observations_qty = reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY * 2
         total_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
                                                              total_observations_qty=processable_observations_qty,
@@ -250,3 +253,15 @@ class TestReportsHandler(unittest.TestCase):
         remaining_processable_reports = total_processable_reports
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertListEqual(processable_reports, expected_processable_reports)
+
+    def test_back_up_reports(self):
+        created_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                   total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
+                                                   start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                                                   reports_delta=DEFAULT_REPORT_DELTA,
+                                                   observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        self.assertTrue(self.reports_handler.back_up_dir_is_empty())
+        self.reports_handler.back_up_reports(created_reports)
+        self.assertFalse(self.reports_handler.back_up_dir_is_empty())
+        processable_reports = self.reports_handler.get_processable_reports()
+        self.assertEquals(len(processable_reports), 0)
