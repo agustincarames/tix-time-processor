@@ -461,13 +461,6 @@ class ReportHandler:
             processable_reports = clean_reports
         return processable_reports
 
-    def get_processable_observations(self):
-        log = logger.getChild('get_datapoints')
-        log.info('getting datapoints')
-        reports = self.get_processable_reports()
-        observations = self.collect_observations(reports)
-        return observations
-
     def back_up_reports(self, reports):
         for report in reports:
             if not report.file_path.startswith(self.back_up_reports_dir_path) and exists(report.file_path):
