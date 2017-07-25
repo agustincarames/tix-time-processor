@@ -362,7 +362,7 @@ class ReportHandler:
             ip = report.from_dir
             if ip not in data_per_ip:
                 data_per_ip[ip] = set()
-            data_per_ip[ip].extend(report.observations)
+            data_per_ip[ip].update(report.observations)
         for ip, observations in data_per_ip.items():
             if len(observations) >= cls.MINIMUM_OBSERVATIONS_QTY:
                 return ip, observations

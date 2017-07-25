@@ -265,3 +265,16 @@ class TestReportsHandler(unittest.TestCase):
         self.assertFalse(self.reports_handler.back_up_dir_is_empty())
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
+
+    def test_collect_observations(self):
+        created_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                   total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
+                                                   start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                                                   reports_delta=DEFAULT_REPORT_DELTA,
+                                                   observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        expected_observations = set()
+        for report in created_reports:
+            expected_observations.update(report.observations)
+        ip, observations = self.reports_handler.collect_observations(created_reports)
+        self.assertEquals(ip, FROM_DIR)
+        self.assertEquals(observations, expected_observations)
