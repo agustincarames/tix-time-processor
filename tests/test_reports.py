@@ -235,3 +235,18 @@ class TestReportsHandler(unittest.TestCase):
         expected_reports.extend(expected_processable_reports)
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
+
+    def test_only_returns_mox_observations(self):
+        processable_observations_qty = reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY * 2
+        total_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                             total_observations_qty=processable_observations_qty,
+                                                             start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                                                             reports_delta=DEFAULT_REPORT_DELTA,
+                                                             observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        expected_processable_reports = list()
+        while reports.ReportHandler.calculate_observations_quantity(expected_processable_reports) < reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY:
+            report = total_processable_reports.pop(0)
+            expected_processable_reports.append(report)
+        remaining_processable_reports = total_processable_reports
+        processable_reports = self.reports_handler.get_processable_reports()
+        self.assertListEqual(processable_reports, expected_processable_reports)

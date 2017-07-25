@@ -286,6 +286,9 @@ class Report:
                      self.user_id,
                      self.installation_id))
 
+    def __repr__(self):
+        return '{0!s}({1!r})'.format(self.__class__, self.__dict__)
+
 
 class ReportHandler:
     MINIMUM_OBSERVATIONS_QTY = 1024
@@ -296,6 +299,10 @@ class ReportHandler:
     BACK_UP_REPORTS_DIR_NAME = 'backup-reports'
     FAILED_RESULTS_DIR_NAME = 'failed-results'
     FAILED_REPORT_FILE_NAME_TEMPLATE = 'failed-report-{timestamp}.json'
+
+    @staticmethod
+    def reports_sorting_key(report):
+        return report.observations[0].day_timestamp
 
     @staticmethod
     def max_gap_in_reports(reports):
@@ -423,7 +430,7 @@ class ReportHandler:
             needed_back_up_reports.append(back_up_report)
             needed_back_up_observations -= len(back_up_report.observations)
         reports.extend(needed_back_up_reports)
-        reports.sort(key=lambda report: report.observations[0].day_timestamp)
+        reports.sort(key=self.reports_sorting_key)
         return reports
 
     def drop_unnecessary_reports(self, reports):
@@ -444,12 +451,14 @@ class ReportHandler:
             clean_reports_with_back_up = self.clean_reports(reports_with_back_up)
             observations_qty = self.calculate_observations_quantity(clean_reports_with_back_up)
             if self.MINIMUM_OBSERVATIONS_QTY <= observations_qty:
-                reports = clean_reports_with_back_up
+                processable_reports = clean_reports_with_back_up
             else:
                 self.delete_reports_files(clean_reports)
                 self.clean_back_up_dir()
-                reports = list()
-        return reports
+                processable_reports = list()
+        else:
+            processable_reports = clean_reports
+        return processable_reports
 
     def get_processable_observations(self):
         log = logger.getChild('get_datapoints')
