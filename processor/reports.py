@@ -49,16 +49,42 @@ class FieldTranslation:
         return self.reverse_translator(field_value)
 
 
+def nanos_to_millis(nanos):
+    return nanos // 10 ** 6
+
+
 class Observation:
     def __init__(self, day_timestamp, type_identifier, packet_size,
                  initial_timestamp, reception_timestamp, sent_timestamp, final_timestamp):
         self.day_timestamp = day_timestamp
-        self.type_identifier = type_identifier
+        try:
+            self.type_identifier = type_identifier.decode()
+        except AttributeError:
+            self.type_identifier = type_identifier
         self.packet_size = packet_size
         self.initial_timestamp = initial_timestamp
         self.reception_timestamp = reception_timestamp
         self.sent_timestamp = sent_timestamp
         self.final_timestamp = final_timestamp
+        self.upstream_phi = 0.0
+        self.downstream_phi = 0.0
+        self.estimated_phi = 0.0
+
+    @property
+    def initial_timestamp_millis(self):
+        return nanos_to_millis(self.initial_timestamp)
+
+    @property
+    def reception_timestamp_millis(self):
+        return nanos_to_millis(self.reception_timestamp)
+
+    @property
+    def sent_timestamp_millis(self):
+        return nanos_to_millis(self.sent_timestamp)
+
+    @property
+    def final_timestamp_millis(self):
+        return nanos_to_millis(self.final_timestamp)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):

@@ -21,16 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 def observation_rtt_key_function(observation):
-    return observation.final_timestamp - observation.initial_timestamp
+    return observation.final_timestamp_millis - observation.initial_timestamp_millis
 
 
 def upstream_time_function(observation, phi_function):
-    return observation.reception_timestamp - phi_function(observation.day_timestamp) \
-           - observation.initial_timestamp
+    return observation.reception_timestamp_millis - phi_function(observation.day_timestamp) \
+           - observation.initial_timestamp_millis
 
 
 def downstream_time_function(observation, phi_function):
-    return observation.final_timestamp - observation.sent_timestamp \
+    return observation.final_timestamp_millis - observation.sent_timestamp_millis \
            + phi_function(observation.day_timestamp)
 
 
@@ -38,11 +38,14 @@ def generate_histogram(observations, histogram_sorting_key_function):
     observations = sorted(observations, key=histogram_sorting_key_function)
     bines_qty = int(floor(sqrt(len(observations))))
     datapoints_per_bin = int(len(observations) / bines_qty)
-    histogram = [[]] * bines_qty
+    histogram = list()
+    for _ in range(bines_qty):
+        histogram.append(list())
     index = 0
     # Create a histogram with the same amount of observation in each bin
     for hbin in histogram:
-        hbin.extend(observations[index:datapoints_per_bin])
+        threshold = index + datapoints_per_bin
+        hbin.extend(observations[index:threshold])
         index += datapoints_per_bin
     # If there still some observations left, we add them to the last bin
     if index < len(observations):
@@ -121,7 +124,7 @@ def get_phis_per_minute(observations):
     observations_per_minute = divide_observations_into_minutes(observations)
     phis = []
     for minute, observations in observations_per_minute.items():
-        bucket_phi = statistics.median([observation['estimated_phi'] for observation in observations])
+        bucket_phi = statistics.median([observation.estimated_phi for observation in observations])
         phis.append((minute, bucket_phi))
     return phis
 
@@ -130,14 +133,14 @@ def generate_observations_with_clocks_corrections(observations, tau,
                                                   downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
                                                   upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
     for observation in observations:
-        upstream_phi = observation.reception_timestamp - observation.initial_timestamp \
+        upstream_phi = observation.reception_timestamp_millis - observation.initial_timestamp_millis \
                        - upstream_serialization_time - tau
-        downstream_phi = observation.sent_timestamp - observation.final_timestamp \
+        downstream_phi = observation.sent_timestamp_millis - observation.final_timestamp_millis \
                          + downstream_serialization_time + tau
         estimated_phi = (downstream_phi + upstream_phi) / 2
-        observation['upstream_phi'] = upstream_phi
-        observation['downstream_phi'] = downstream_phi
-        observation['estimated_phi'] = estimated_phi
+        observation.upstream_phi = upstream_phi
+        observation.downstream_phi = downstream_phi
+        observation.estimated_phi = estimated_phi
     return observations
 
 
@@ -186,7 +189,7 @@ def get_meaningful_observations(observations):
     if observations_delta < MEANINGFUL_OBSERVATIONS_DELTA:
         raise ValueError('Meaningful observations time delta is lower than expected. Expected {}, got {}'\
                          .format(MEANINGFUL_OBSERVATIONS_DELTA, observations_delta))
-    meaningful_threshold_timestamp = last_observation['day_timestamp'] - MEANINGFUL_OBSERVATIONS_DELTA.total_seconds()
+    meaningful_threshold_timestamp = last_observation.day_timestamp - MEANINGFUL_OBSERVATIONS_DELTA.total_seconds()
     meaningful_observations = [observation for observation in observations
                                if observation.day_timestamp > meaningful_threshold_timestamp]
     return meaningful_observations
