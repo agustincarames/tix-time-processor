@@ -242,7 +242,7 @@ def process_observations(observations):
                                                        downstream_hurst=downstream_hurst,
                                                        phi_function=phi_function)
     return {
-        'timestamp': meaningful_observations[0]['day_timestamp'],
+        'timestamp': meaningful_observations[0].day_timestamp,
         'upstream': {
             'usage': upstream_usage,
             'quality': upstream_quality,
