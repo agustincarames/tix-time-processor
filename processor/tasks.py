@@ -28,16 +28,18 @@ def process_installation(installation_dir_path, user_id, installation_id):
     try:
         reports_handler = reports.ReportHandler(installation_dir_path)
         processable_reports = reports_handler.get_processable_reports()
-        ip, observations = reports_handler.collect_observations(processable_reports)
-        if len(observations) == 0:
-            logger.warn('No observations found')
+        if len(processable_reports) == 0:
+            logger.warn('Not enough processable reports found.')
             return
-        results = analysis.process_observations(observations)
-        if not api_communication.post_results(ip, results, user_id, installation_id):
-            logger.warn('Could not post results to API. Backing up file for later.')
-            reports_handler.back_up_failed_results(results, ip)
-        reports_handler.clean_back_up_dir()
-        reports_handler.back_up_reports(processable_reports)
+        while len(processable_reports) > 0:
+            ip, observations = reports_handler.collect_observations(processable_reports)
+            results = analysis.process_observations(observations)
+            if not api_communication.post_results(ip, results, user_id, installation_id):
+                logger.warn('Could not post results to API. Backing up file for later.')
+                reports_handler.back_up_failed_results(results, ip)
+            reports_handler.clean_back_up_dir()
+            reports_handler.back_up_reports(processable_reports)
+            processable_reports = reports_handler.get_processable_reports()
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))
