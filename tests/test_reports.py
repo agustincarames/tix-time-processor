@@ -7,7 +7,7 @@ import unittest
 import datetime
 
 import jsonschema
-from os import unlink
+from os import unlink, getcwd
 
 from os.path import join, exists
 
@@ -53,15 +53,15 @@ def generate_report(from_dir, to_dir, user_id, installation_id,
                     start_time=datetime.datetime.now(datetime.timezone.utc),
                     report_delta=DEFAULT_REPORT_DELTA,
                     observations_delta=DEFAULT_OBSERVATIONS_DELTA):
-    packet_type = 'S'
-    initial_timestamp = received_timestamp = sent_timestamp = final_timestamp = 0
+    packet_type = 'LONG'
+    initial_timestamp = reception_timestamp = sent_timestamp = final_timestamp = 0
     public_key = signature = 'a'
     observations = generate_observations(start_time, report_delta, observations_delta)
     return reports.Report(from_dir=from_dir,
                           to_dir=to_dir,
                           packet_type=packet_type,
                           initial_timestamp=initial_timestamp,
-                          received_timestamp=received_timestamp,
+                          reception_timestamp=reception_timestamp,
                           sent_timestamp=sent_timestamp,
                           final_timestamp=final_timestamp,
                           public_key=public_key,
@@ -99,6 +99,14 @@ class TestReport(unittest.TestCase):
         loaded_report.file_path = None
         self.assertEquals(original_report, loaded_report)
         unlink(report_file_path)
+
+    def test_load_file(self):
+        report_file_name = 'test-tix-report.json'
+        current_working_directory = getcwd()
+        tests_path = 'tests'
+        report_file_path = join(current_working_directory, tests_path, report_file_name)
+        report = reports.Report.load(report_file_path)
+        self.assertTrue(isinstance(report, reports.Report))
 
     def test_get_report_gap(self):
         report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)

@@ -2,7 +2,6 @@ import base64
 import datetime
 import json
 import os
-from operator import attrgetter
 from os import listdir, unlink, mkdir, rename
 
 from os.path import join, exists, isfile, islink
@@ -160,10 +159,10 @@ JSON_REPORT_SCHEMA = {
         },
         "type": {
             "type": "string",
-            "enum": ["S", "L"]
+            "enum": ["LONG"]
         },
         "initialTimestamp": {"type": "integer"},
-        "receivedTimestamp": {"type": "integer"},
+        "receptionTimestamp": {"type": "integer"},
         "sentTimestamp": {"type": "integer"},
         "finalTimestamp": {"type": "integer"},
         "publicKey": {"type": "string"},
@@ -174,7 +173,7 @@ JSON_REPORT_SCHEMA = {
     },
     "required": [
         "from", "to", "type",
-        "initialTimestamp", "receivedTimestamp", "sentTimestamp", "finalTimestamp",
+        "initialTimestamp", "receptionTimestamp", "sentTimestamp", "finalTimestamp",
         "publicKey", "message", "signature",
         "userId", "installationId"
     ]
@@ -182,16 +181,18 @@ JSON_REPORT_SCHEMA = {
 
 
 class ReportJSONEncoder(json.JSONEncoder):
-    def object_to_json(self, report_object):
+    @staticmethod
+    def report_to_dict(report_object):
         report_dict = report_object.__dict__.copy()
         for field_translation in JSON_FIELDS_TRANSLATIONS:
             field_value = report_dict.pop(field_translation.translation)
             report_dict[field_translation.original] = field_translation.reverse_translate(field_value)
-        report_dict_fields = report_dict.keys()
+        report_dict_fields = list(report_dict.keys())
         for field in report_dict_fields:
             inflexed_key = inflection.camelize(field, False)
             report_dict[inflexed_key] = report_dict.pop(field)
         fields_to_delete = []
+        report_dict_fields = list(report_dict.keys())
         for field in report_dict_fields:
             if field not in JSON_REPORT_SCHEMA['required']:
                 fields_to_delete.append(field)
@@ -201,7 +202,7 @@ class ReportJSONEncoder(json.JSONEncoder):
 
     def default(self, obj):
         if isinstance(obj, Report):
-            json_dict = self.object_to_json(obj)
+            json_dict = self.report_to_dict(obj)
         else:
             json_dict = json.JSONEncoder.default(self, obj)
         return json_dict
@@ -209,8 +210,8 @@ class ReportJSONEncoder(json.JSONEncoder):
 
 class ReportJSONDecoder(json.JSONDecoder):
     @staticmethod
-    def json_to_object(json_dict):
-        json_dict_keys = json_dict.keys()
+    def dict_to_report(json_dict):
+        json_dict_keys = list(json_dict.keys())
         for key in json_dict_keys:
             new_key = inflection.underscore(key)
             json_dict[new_key] = json_dict.pop(key)
@@ -223,7 +224,7 @@ class ReportJSONDecoder(json.JSONDecoder):
     def dict_to_object(self, d):
         try:
             jsonschema.validate(d, JSON_REPORT_SCHEMA)
-            inst = self.json_to_object(d)
+            inst = self.dict_to_report(d)
         except jsonschema.ValidationError:
             inst = d
         return inst
@@ -250,14 +251,14 @@ class Report:
 
     def __init__(self,
                  from_dir, to_dir, packet_type,
-                 initial_timestamp, received_timestamp, sent_timestamp, final_timestamp,
+                 initial_timestamp, reception_timestamp, sent_timestamp, final_timestamp,
                  public_key, observations, signature,
                  user_id, installation_id, file_path=None):
         self.from_dir = from_dir
         self.to_dir = to_dir
         self.packet_type = packet_type
         self.initial_timestamp = initial_timestamp
-        self.received_timestamp = received_timestamp
+        self.reception_timestamp = reception_timestamp
         self.sent_timestamp = sent_timestamp
         self.final_timestamp = final_timestamp
         self.public_key = public_key
@@ -277,7 +278,7 @@ class Report:
                      self.to_dir,
                      self.packet_type,
                      self.initial_timestamp,
-                     self.received_timestamp,
+                     self.reception_timestamp,
                      self.sent_timestamp,
                      self.final_timestamp,
                      self.public_key,
