@@ -101,12 +101,11 @@ def characterize_observations(observations, characterization_key_function):
     # mode, threshold = get_mode_and_threshold(histogram, characterization_key_function)
     characterizations = {characterization_key_function(observation) for observation in observations}
     observations_by_characterization = dict()
-    for characterization in characterizations:
-        for observation in observations:
-            if characterization_key_function(observation) == characterization:
-                if characterization not in observations_by_characterization:
-                    observations_by_characterization[characterization] = list()
-                observations_by_characterization[characterization].append(observation)
+    for observation in observations:
+        characterization = characterization_key_function(observation)
+        if characterization not in observations_by_characterization:
+            observations_by_characterization[characterization] = list()
+        observations_by_characterization[characterization].append(observation)
     mode_characterization = max(observations_by_characterization, key=(lambda characterization:
                                                       len(observations_by_characterization[characterization])))
     min_characterization = min(observations_by_characterization)
