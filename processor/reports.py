@@ -507,5 +507,5 @@ class ReportHandler:
         }
         failed_result_file_name = self.FAILED_REPORT_FILE_NAME_TEMPLATE.format(timestamp=results['timestamp'])
         failed_result_file_path = join(self.failed_results_dir_path, failed_result_file_name)
-        with open(failed_result_file_path) as failed_result_file:
+        with open(failed_result_file_path, 'w') as failed_result_file:
             json.dump(json_failed_results, failed_result_file)

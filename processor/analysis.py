@@ -183,8 +183,9 @@ def get_hurst_values(observations, phi_function):
 
 
 def get_meaningful_observations(observations):
-    first_observation = observations[0]
-    last_observation = observations[-1]
+    sorted_observations = sorted(observations, key=attrgetter('day_timestamp'))
+    first_observation = sorted_observations[0]
+    last_observation = sorted_observations[-1]
     observations_delta = timedelta(seconds=(last_observation.day_timestamp - first_observation.day_timestamp))
     if observations_delta < MEANINGFUL_OBSERVATIONS_DELTA:
         raise ValueError('Meaningful observations time delta is lower than expected. Expected {}, got {}'\

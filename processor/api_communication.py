@@ -10,7 +10,7 @@ TIX_API_HOST = os.environ.get('TIX_API_HOST', 'localhost')
 TIX_API_PORT = os.environ.get('TIX_API_PORT')
 TIX_API_USER = os.environ.get('TIX_API_USER')
 TIX_API_PASS = os.environ.get('TIX_API_PASSWORD')
-TIX_API_URL_TEMPLATE = '{proto}://{api_host}/api/user/{user_id}/installation/{installation_id}/report'
+TIX_API_URL_TEMPLATE = '{proto}://{api_host}/api/user/{user_id}/installation/{installation_id}/reports'
 
 logger = logging.getLogger(__name__)
 
