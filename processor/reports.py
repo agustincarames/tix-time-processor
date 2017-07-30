@@ -394,6 +394,7 @@ class ReportHandler:
         raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(cls.MINIMUM_OBSERVATIONS_QTY))
 
     def __init__(self, installation_dir_path):
+        self.logger = logger.getChild('ReportHandler')
         self.installation_dir_path = installation_dir_path
         self.back_up_reports_dir_path = join(self.installation_dir_path, self.BACK_UP_REPORTS_DIR_NAME)
         if not exists(self.back_up_reports_dir_path):
@@ -469,6 +470,7 @@ class ReportHandler:
         return processable_reports
 
     def get_processable_reports(self):
+        logger = self.logger.getChild('get_processable_reports')
         reports = self.get_unprocessed_reports()
         clean_reports = self.clean_reports(reports)
         observations_qty = self.calculate_observations_quantity(clean_reports)
@@ -487,6 +489,8 @@ class ReportHandler:
                 processable_reports = list()
         else:
             processable_reports = clean_reports
+        if len(processable_reports) == 0:
+            logger.warn('Not enough reports found at installation dir {}'.format(self.installation_dir_path))
         return processable_reports
 
     def back_up_reports(self, reports):

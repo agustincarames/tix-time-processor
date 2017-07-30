@@ -16,7 +16,7 @@ tasks_logger = logging.getLogger(__name__)
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
-        crontab(minute='*/10'),
+        crontab(minute='*/1'),
         process_users_data.s(REPORTS_BASE_PATH),
         name='process_users_data')
 
@@ -28,18 +28,27 @@ def process_installation(installation_dir_path, user_id, installation_id):
     try:
         reports_handler = reports.ReportHandler(installation_dir_path)
         processable_reports = reports_handler.get_processable_reports()
-        if len(processable_reports) == 0:
-            logger.warn('Not enough processable reports found.')
-            return
         while len(processable_reports) > 0:
-            ip, observations = reports_handler.collect_observations(processable_reports)
-            results = analysis.process_observations(list(observations))
-            if not api_communication.post_results(ip, results, user_id, installation_id):
-                logger.warn('Could not post results to API. Backing up file for later.')
-                reports_handler.back_up_failed_results(results, ip)
-            reports_handler.clean_back_up_dir()
-            reports_handler.back_up_reports(processable_reports)
-            processable_reports = reports_handler.get_processable_reports()
+            clean_up = False
+            try:
+                ip, observations = reports_handler.collect_observations(processable_reports)
+                results = analysis.process_observations(list(observations))
+                if not api_communication.post_results(ip, results, user_id, installation_id):
+                    logger.warn('Could not post results to API. Backing up file for later.')
+                    reports_handler.back_up_failed_results(results, ip)
+                clean_up = True
+            except ValueError as ve:
+                logger.warn('ValueError found')
+                logger.warn(ve.args)
+                clean_up = True
+            except Exception as e:
+                logger.error('Exception {} thrown'.format(e.__class__))
+                raise e
+            finally:
+                if clean_up:
+                    reports_handler.clean_back_up_dir()
+                    reports_handler.back_up_reports(processable_reports)
+                    processable_reports = reports_handler.get_processable_reports()
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))
