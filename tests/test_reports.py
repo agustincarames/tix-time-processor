@@ -284,5 +284,5 @@ class TestReportsHandler(unittest.TestCase):
         for report in created_reports:
             expected_observations.update(report.observations)
         ip, observations = self.reports_handler.collect_observations(created_reports)
-        self.assertEquals(ip, FROM_DIR)
+        self.assertTrue(FROM_DIR.startswith(ip))
         self.assertEquals(observations, expected_observations)
