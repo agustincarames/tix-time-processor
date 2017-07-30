@@ -473,14 +473,17 @@ class ReportHandler:
         clean_reports = self.clean_reports(reports)
         observations_qty = self.calculate_observations_quantity(clean_reports)
         if observations_qty < self.MINIMUM_OBSERVATIONS_QTY:
-            reports_with_back_up = self.add_back_up_reports(clean_reports)
-            clean_reports_with_back_up = self.clean_reports(reports_with_back_up)
-            observations_qty = self.calculate_observations_quantity(clean_reports_with_back_up)
-            if self.MINIMUM_OBSERVATIONS_QTY <= observations_qty:
-                processable_reports = clean_reports_with_back_up
+            if not self.back_up_dir_is_empty():
+                reports_with_back_up = self.add_back_up_reports(clean_reports)
+                clean_reports_with_back_up = self.clean_reports(reports_with_back_up)
+                observations_qty = self.calculate_observations_quantity(clean_reports_with_back_up)
+                if self.MINIMUM_OBSERVATIONS_QTY <= observations_qty:
+                    processable_reports = clean_reports_with_back_up
+                else:
+                    self.delete_reports_files(clean_reports)
+                    self.clean_back_up_dir()
+                    processable_reports = list()
             else:
-                self.delete_reports_files(clean_reports)
-                self.clean_back_up_dir()
                 processable_reports = list()
         else:
             processable_reports = clean_reports
