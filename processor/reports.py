@@ -383,7 +383,8 @@ class ReportHandler:
     def collect_observations(cls, reports):
         data_per_ip = {}
         for report in reports:
-            ip = report.from_dir
+            socket_dir = report.from_dir
+            ip = socket_dir.split(':')[0]
             if ip not in data_per_ip:
                 data_per_ip[ip] = set()
             data_per_ip[ip].update(report.observations)
