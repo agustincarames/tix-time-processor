@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import statistics
 from functools import partial
+from operator import attrgetter
 
 import numpy as np
 from scipy import stats
@@ -96,9 +97,21 @@ def get_mode_and_threshold(histogram, histogram_sorting_key_function, alpha=1):
 
 
 def characterize_observations(observations, characterization_key_function):
-    histogram = generate_histogram(observations, histogram_sorting_key_function=characterization_key_function)
-    mode, threshold = get_mode_and_threshold(histogram, characterization_key_function)
-    return mode, threshold
+    # histogram = generate_histogram(observations, histogram_sorting_key_function=characterization_key_function)
+    # mode, threshold = get_mode_and_threshold(histogram, characterization_key_function)
+    characterizations = {characterization_key_function(observation) for observation in observations}
+    observations_by_characterization = dict()
+    for characterization in characterizations:
+        for observation in observations:
+            if characterization_key_function(observation) == characterization:
+                if characterization not in observations_by_characterization:
+                    observations_by_characterization[characterization] = list()
+                observations_by_characterization[characterization].append(observation)
+    mode_characterization = max(observations_by_characterization, key=(lambda characterization:
+                                                      len(observations_by_characterization[characterization])))
+    min_characterization = min(observations_by_characterization)
+    threshold = mode_characterization + min_characterization + ((mode_characterization - min_characterization) // 2)
+    return mode_characterization, threshold
 
 
 def divide_observations_into_minutes(observations):
