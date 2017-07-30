@@ -57,10 +57,7 @@ class Observation:
     def __init__(self, day_timestamp, type_identifier, packet_size,
                  initial_timestamp, reception_timestamp, sent_timestamp, final_timestamp):
         self.day_timestamp = day_timestamp
-        try:
-            self.type_identifier = type_identifier.decode()
-        except AttributeError:
-            self.type_identifier = type_identifier
+        self.type_identifier = type_identifier
         self.packet_size = packet_size
         self.initial_timestamp = initial_timestamp
         self.reception_timestamp = reception_timestamp

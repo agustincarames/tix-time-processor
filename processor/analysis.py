@@ -247,7 +247,7 @@ def get_quality(observations, upstream_hurst, downstream_hurst, phi_function):
 def process_observations(observations):
     log = logger.getChild('process_data_points')
     log.info('processing data points')
-    short_packets_observations = [observation for observation in observations if observation.type_identifier == 'S']
+    short_packets_observations = [observation for observation in observations if observation.type_identifier == b'S']
     tau, tau_threshold = characterize_observations(short_packets_observations, observation_rtt_key_function)
     phi_function = get_phi_function(short_packets_observations, tau)
     upstream_hurst, downstream_hurst = get_hurst_values(short_packets_observations, phi_function)
