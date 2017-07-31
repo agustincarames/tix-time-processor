@@ -9,6 +9,7 @@ from processor import app, REPORTS_BASE_PATH
 from processor import reports
 from processor import api_communication
 from processor import analysis
+from processor.reports import NotEnoughObservationsError
 
 tasks_logger = logging.getLogger(__name__)
 
@@ -37,9 +38,9 @@ def process_installation(installation_dir_path, user_id, installation_id):
                     logger.warn('Could not post results to API. Backing up file for later.')
                     reports_handler.back_up_failed_results(results, ip)
                 clean_up = True
-            except ValueError as ve:
-                logger.warn('ValueError found')
-                logger.warn(ve.args)
+            except NotEnoughObservationsError as neoe:
+                logger.warn('Not enough processable observations for any IP')
+                logger.warn(neoe.args)
                 clean_up = True
             except Exception as e:
                 logger.error('Exception {} thrown'.format(e.__class__))
@@ -48,7 +49,7 @@ def process_installation(installation_dir_path, user_id, installation_id):
                 if clean_up:
                     reports_handler.clean_back_up_dir()
                     reports_handler.back_up_reports(processable_reports)
-                    processable_reports = reports_handler.get_processable_reports()
+                processable_reports = reports_handler.get_processable_reports()
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))

@@ -314,6 +314,10 @@ class Report:
         return '{0!s}({1!r})'.format(self.__class__, self.__dict__)
 
 
+class NotEnoughObservationsError(Exception):
+    pass
+
+
 class ReportHandler:
     MINIMUM_OBSERVATIONS_QTY = 1024
     MAXIMUM_OBSERVATIONS_QTY = 1200
@@ -391,7 +395,8 @@ class ReportHandler:
         for ip, observations in data_per_ip.items():
             if len(observations) >= cls.MINIMUM_OBSERVATIONS_QTY:
                 return ip, observations
-        raise ValueError('Expected at least 1 AS with {} observations. None found.'.format(cls.MINIMUM_OBSERVATIONS_QTY))
+        raise NotEnoughObservationsError('Expected at least 1 AS with {} observations. None found.'
+                                         .format(cls.MINIMUM_OBSERVATIONS_QTY))
 
     def __init__(self, installation_dir_path):
         self.logger = logger.getChild('ReportHandler')
@@ -486,6 +491,8 @@ class ReportHandler:
                     self.clean_back_up_dir()
                     processable_reports = list()
             else:
+                if len(clean_reports) < len(reports):
+                    self.delete_reports_files(clean_reports)
                 processable_reports = list()
         else:
             processable_reports = clean_reports
