@@ -22,16 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 def observation_rtt_key_function(observation):
-    return observation.final_timestamp_millis - observation.initial_timestamp_millis
+    return observation.final_timestamp - observation.initial_timestamp
 
 
 def upstream_time_function(observation, phi_function):
-    return observation.reception_timestamp_millis - phi_function(observation.day_timestamp) \
-           - observation.initial_timestamp_millis
+    return observation.reception_timestamp - phi_function(observation.day_timestamp) \
+           - observation.initial_timestamp
 
 
 def downstream_time_function(observation, phi_function):
-    return observation.final_timestamp_millis - observation.sent_timestamp_millis \
+    return observation.final_timestamp - observation.sent_timestamp \
            + phi_function(observation.day_timestamp)
 
 
@@ -97,19 +97,19 @@ def get_mode_and_threshold(histogram, histogram_sorting_key_function, alpha=1):
 
 
 def characterize_observations(observations, characterization_key_function):
-    # histogram = generate_histogram(observations, histogram_sorting_key_function=characterization_key_function)
-    # mode, threshold = get_mode_and_threshold(histogram, characterization_key_function)
-    characterizations = {characterization_key_function(observation) for observation in observations}
-    observations_by_characterization = dict()
-    for observation in observations:
-        characterization = characterization_key_function(observation)
-        if characterization not in observations_by_characterization:
-            observations_by_characterization[characterization] = list()
-        observations_by_characterization[characterization].append(observation)
-    mode_characterization = max(observations_by_characterization, key=(lambda characterization:
-                                                      len(observations_by_characterization[characterization])))
-    min_characterization = min(observations_by_characterization)
-    threshold = mode_characterization + min_characterization + ((mode_characterization - min_characterization) // 2)
+    histogram = generate_histogram(observations, histogram_sorting_key_function=characterization_key_function)
+    mode_characterization, threshold = get_mode_and_threshold(histogram, characterization_key_function)
+    # characterizations = {characterization_key_function(observation) for observation in observations}
+    # observations_by_characterization = dict()
+    # for observation in observations:
+    #     characterization = characterization_key_function(observation)
+    #     if characterization not in observations_by_characterization:
+    #         observations_by_characterization[characterization] = list()
+    #     observations_by_characterization[characterization].append(observation)
+    # mode_characterization = max(observations_by_characterization, key=(lambda characterization:
+    #                                                   len(observations_by_characterization[characterization])))
+    # min_characterization = min(observations_by_characterization)
+    # threshold = mode_characterization + min_characterization + ((mode_characterization - min_characterization) // 2)
     return mode_characterization, threshold
 
 
@@ -145,9 +145,9 @@ def generate_observations_with_clocks_corrections(observations, tau,
                                                   downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
                                                   upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
     for observation in observations:
-        upstream_phi = observation.reception_timestamp_millis - observation.initial_timestamp_millis \
+        upstream_phi = observation.reception_timestamp - observation.initial_timestamp \
                        - upstream_serialization_time - tau
-        downstream_phi = observation.sent_timestamp_millis - observation.final_timestamp_millis \
+        downstream_phi = observation.sent_timestamp - observation.final_timestamp \
                          + downstream_serialization_time + tau
         estimated_phi = (downstream_phi + upstream_phi) / 2
         observation.upstream_phi = upstream_phi

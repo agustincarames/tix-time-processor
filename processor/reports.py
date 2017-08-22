@@ -49,8 +49,8 @@ class FieldTranslation:
         return self.reverse_translator(field_value)
 
 
-def nanos_to_millis(nanos):
-    return nanos // 10 ** 6
+def nanos_to_micros(nanos):
+    return nanos // 10 ** 3
 
 
 class Observation:
@@ -59,29 +59,29 @@ class Observation:
         self.day_timestamp = day_timestamp
         self.type_identifier = type_identifier
         self.packet_size = packet_size
-        self.initial_timestamp = initial_timestamp
-        self.reception_timestamp = reception_timestamp
-        self.sent_timestamp = sent_timestamp
-        self.final_timestamp = final_timestamp
+        self.initial_timestamp_nanos = initial_timestamp
+        self.reception_timestamp_nanos = reception_timestamp
+        self.sent_timestamp_nanos = sent_timestamp
+        self.final_timestamp_nanos = final_timestamp
         self.upstream_phi = 0.0
         self.downstream_phi = 0.0
         self.estimated_phi = 0.0
 
     @property
-    def initial_timestamp_millis(self):
-        return nanos_to_millis(self.initial_timestamp)
+    def initial_timestamp(self):
+        return self.initial_timestamp_nanos 
 
     @property
-    def reception_timestamp_millis(self):
-        return nanos_to_millis(self.reception_timestamp)
+    def reception_timestamp(self):
+        return self.reception_timestamp_nanos
 
     @property
-    def sent_timestamp_millis(self):
-        return nanos_to_millis(self.sent_timestamp)
+    def sent_timestamp(self):
+        return self.sent_timestamp_nanos
 
     @property
-    def final_timestamp_millis(self):
-        return nanos_to_millis(self.final_timestamp)
+    def final_timestamp(self):
+        return self.final_timestamp_nanos
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -92,10 +92,10 @@ class Observation:
         return hash((self.day_timestamp,
                      self.type_identifier,
                      self.packet_size,
-                     self.initial_timestamp,
-                     self.reception_timestamp,
-                     self.sent_timestamp,
-                     self.final_timestamp))
+                     self.initial_timestamp_nanos,
+                     self.reception_timestamp_nanos,
+                     self.sent_timestamp_nanos,
+                     self.final_timestamp_nanos))
 
 
 class SerializedObservationField:
