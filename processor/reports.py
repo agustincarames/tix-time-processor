@@ -366,11 +366,13 @@ class ReportHandler:
                 unlink(report.file_path)
 
     @staticmethod
-    def fetch_reports(reports_dir_path, last_first=False, reports_quantity=None):
+    def calculate_observations_quantity(reports):
+        return sum([len(report.observations) for report in reports])
+
+    @classmethod
+    def fetch_reports(cls, reports_dir_path, last_first=False):
         reports = []
         reports_files = sorted(listdir(reports_dir_path), reverse=last_first)
-        if reports_quantity is not None:
-            reports_files = reports_files[:reports_quantity]
         for file_name in reports_files:
             if file_name.endswith('.json'):
                 file_path = join(reports_dir_path, file_name)
@@ -378,10 +380,6 @@ class ReportHandler:
                     report_object = Report.load(file_path)
                     reports.append(report_object)
         return reports
-
-    @staticmethod
-    def calculate_observations_quantity(reports):
-        return sum([len(report.observations) for report in reports])
 
     @classmethod
     def collect_observations(cls, reports):
@@ -414,13 +412,16 @@ class ReportHandler:
     def back_up_dir_is_empty(self):
         return not exists(self.back_up_reports_dir_path) or len(listdir(self.back_up_reports_dir_path)) == 0
 
-    def get_back_up_reports(self, reports_quantity):
-        return self.fetch_reports(self.back_up_reports_dir_path, last_first=False, reports_quantity=reports_quantity)
+    def get_back_up_reports(self):
+        return self.fetch_reports(self.back_up_reports_dir_path)
 
     def clean_back_up_dir(self):
+        logger = self.logger.getChild('clean_back_up_dir')
+        logger.info('Cleaning back-up dir')
         for file_name in listdir(self.back_up_reports_dir_path):
             file_path = join(self.back_up_reports_dir_path, file_name)
             if isfile(file_path) and not islink(file_path):
+                logger.debug('unlinking file_path {}'.format(file_path))
                 unlink(file_path)
 
     def get_gapless_reports(self, reports):
@@ -441,9 +442,12 @@ class ReportHandler:
         return clean_reports
 
     def add_back_up_reports(self, reports):
+        logger = self.logger.getChild('add_back_up_reports')
+        logger.info('Using backup reports from {}'.format(self.back_up_reports_dir_path))
         # If there are less than the minimum observations needed to process in the installation directory and there
         # are no reports in the back up directory, then we assume that this might be a fresh process and leave
         if self.back_up_dir_is_empty():
+            logger.info('Back up dir {} is empty or does not exists.'.format(self.back_up_reports_dir_path))
             return reports
         # If there are less than the minimum observations needed to process in the installation directory
         # and the amount of back up reports needed for processing is too much we simply establish that there
@@ -453,9 +457,10 @@ class ReportHandler:
         observations_qty = self.calculate_observations_quantity(reports)
         needed_back_up_observations = self.MINIMUM_OBSERVATIONS_QTY - observations_qty
         if needed_back_up_observations > self.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD:
-            self.clean_back_up_dir()
+            logger.info('Not enough observations to use the back-ups at installation {}.'
+                        .format(self.installation_dir_path))
             return reports
-        back_up_reports = self.get_back_up_reports(reports_quantity=None)
+        back_up_reports = self.get_back_up_reports()
         needed_back_up_reports = []
         while needed_back_up_observations > 0:
             back_up_report = back_up_reports.pop()
@@ -480,6 +485,8 @@ class ReportHandler:
         clean_reports = self.clean_reports(reports)
         observations_qty = self.calculate_observations_quantity(clean_reports)
         if observations_qty < self.MINIMUM_OBSERVATIONS_QTY:
+            logger.info('Not enough observations to make a run at installation {}. '
+                        'Trying with backed-up reports.'.format(self.installation_dir_path))
             if not self.back_up_dir_is_empty():
                 reports_with_back_up = self.add_back_up_reports(clean_reports)
                 clean_reports_with_back_up = self.clean_reports(reports_with_back_up)
@@ -487,11 +494,15 @@ class ReportHandler:
                 if self.MINIMUM_OBSERVATIONS_QTY <= observations_qty:
                     processable_reports = clean_reports_with_back_up
                 else:
+                    logger.info('Not enough observations to process in installation {}. '
+                                'Deleting reports.'.format(self.installation_dir_path))
                     self.delete_reports_files(clean_reports)
-                    self.clean_back_up_dir()
                     processable_reports = list()
             else:
+                logger.info('Back-up dir {} is empty or does not exists'.format(self.back_up_reports_dir_path))
                 if len(clean_reports) < len(reports):
+                    logger.info('Unprocessable gap found in installation {}. '
+                                'Deleting reports.'.format(self.installation_dir_path))
                     self.delete_reports_files(clean_reports)
                 processable_reports = list()
         else:
@@ -501,11 +512,16 @@ class ReportHandler:
         return processable_reports
 
     def back_up_reports(self, reports):
+        logger = self.logger.getChild('back_up_reports')
+        logger.info('Backing up reports from {} into {}'.format(self.installation_dir_path,
+                                                                self.back_up_reports_dir_path))
         for report in reports:
+            logger.debug('report {}'.format(report.file_path))
             if not report.file_path.startswith(self.back_up_reports_dir_path) and exists(report.file_path):
                 split_file_path = report.file_path.split(os.sep)
                 report_file_name = split_file_path[-1]
                 new_report_file_path = join(self.back_up_reports_dir_path, report_file_name)
+                logger.debug('moving {} into {}'.format(report.file_path, new_report_file_path))
                 rename(report.file_path, new_report_file_path)
                 report.file_path = new_report_file_path
 

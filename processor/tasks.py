@@ -33,6 +33,10 @@ def process_installation(installation_dir_path, user_id, installation_id):
             clean_up = False
             try:
                 ip, observations = reports_handler.collect_observations(processable_reports)
+                logger.info('Analyzing {} observation for IP {} to user {} in installation {}'.format(len(observations),
+                                                                                                      ip,
+                                                                                                      user_id,
+                                                                                                      installation_id))
                 results = analysis.process_observations(list(observations))
                 if not api_communication.post_results(ip, results, user_id, installation_id):
                     logger.warn('Could not post results to API. Backing up file for later.')
@@ -47,6 +51,7 @@ def process_installation(installation_dir_path, user_id, installation_id):
                 raise e
             finally:
                 if clean_up:
+                    logger.info('Cleaning up')
                     reports_handler.clean_back_up_dir()
                     reports_handler.back_up_reports(processable_reports)
                 processable_reports = reports_handler.get_processable_reports()
