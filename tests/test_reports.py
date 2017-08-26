@@ -243,7 +243,6 @@ class TestReportsHandler(unittest.TestCase):
         expected_reports.extend(expected_processable_reports)
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
-        self.assertTrue(self.reports_handler.back_up_dir_is_empty())
         processable_reports = self.reports_handler.get_processable_reports()
         self.assertEquals(len(processable_reports), 0)
 
