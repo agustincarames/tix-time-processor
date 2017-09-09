@@ -7,7 +7,7 @@ import unittest
 import datetime
 
 import jsonschema
-from os import unlink, getcwd
+from os import unlink, getcwd, listdir
 
 from os.path import join, exists
 
@@ -108,9 +108,9 @@ class TestReport(unittest.TestCase):
         report = reports.Report.load(report_file_path)
         self.assertTrue(isinstance(report, reports.Report))
 
-    def test_get_report_gap(self):
+    def test_get_observations_gap(self):
         report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
-        gap = reports.Report.get_report_gap(report)
+        gap = report.get_observations_gap()
         expected_gap = DEFAULT_REPORT_DELTA.total_seconds() - 1
         self.assertEqual(gap, expected_gap)
 
@@ -127,11 +127,12 @@ class TestReport(unittest.TestCase):
 class TestReportsHandler(unittest.TestCase):
 
     @staticmethod
-    def create_report_files(dir_path, total_observations_qty, start_time, reports_delta, observations_delta):
+    def create_report_files(dir_path, total_observations_qty, start_time, reports_delta, observations_delta,
+                            from_dir=FROM_DIR, to_dir=TO_DIR):
         observations_qty = 0
         expected_processable_reports = []
         while observations_qty < total_observations_qty:
-            report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID,
+            report = generate_report(from_dir, to_dir, USER_ID, INSTALLATION_ID,
                                      start_time=start_time,
                                      report_delta=reports_delta,
                                      observations_delta=observations_delta)
@@ -154,15 +155,10 @@ class TestReportsHandler(unittest.TestCase):
 
     def test_init(self):
         expected_installation_dir_path = self.working_dir.name
-        expected_back_up_dir_path = join(expected_installation_dir_path,
-                                         reports.ReportHandler.BACK_UP_REPORTS_DIR_NAME)
         expected_failed_results_path = join(expected_installation_dir_path,
                                             reports.ReportHandler.FAILED_RESULTS_DIR_NAME)
         self.assertEquals(self.reports_handler.installation_dir_path,
                           expected_installation_dir_path)
-        self.assertEquals(self.reports_handler.back_up_reports_dir_path,
-                          expected_back_up_dir_path)
-        self.assertTrue(exists(self.reports_handler.back_up_reports_dir_path))
         self.assertEquals(self.reports_handler.failed_results_dir_path,
                           expected_failed_results_path)
         self.assertTrue(exists(self.reports_handler.failed_results_dir_path))
@@ -173,32 +169,20 @@ class TestReportsHandler(unittest.TestCase):
                                                                 start_time=datetime.datetime.now(tz=datetime.timezone.utc),
                                                                 reports_delta=DEFAULT_REPORT_DELTA,
                                                                 observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertListEqual(processable_reports, expected_processable_reports)
+        expected_ip, expected_processable_observations = reports.ReportHandler.collect_observations(expected_processable_reports)
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        self.assertEquals(processable_observations, expected_processable_observations)
+        self.assertEqual(ip, expected_ip)
 
-    def test_returns_reports_if_not_enough_processable_but_back_up(self):
-        processable_observations_qty = reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY - \
-                                       reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD - 1
-        back_up_observations_qty = reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD
-        back_up_reports_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
-        expected_back_up_reports = self.create_report_files(dir_path=self.reports_handler.back_up_reports_dir_path,
-                                                            total_observations_qty=back_up_observations_qty,
-                                                            start_time=back_up_reports_start_time,
-                                                            reports_delta=DEFAULT_REPORT_DELTA,
-                                                            observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        last_timestamp = expected_back_up_reports[-1].observations[-1].day_timestamp
-        processable_observations_start_time = datetime.datetime.fromtimestamp(last_timestamp, tz=datetime.timezone.utc)\
-            + DEFAULT_OBSERVATIONS_DELTA
-        expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                                total_observations_qty=processable_observations_qty,
-                                                                start_time=processable_observations_start_time,
-                                                                reports_delta=DEFAULT_REPORT_DELTA,
-                                                                observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        expected_reports = list()
-        expected_reports.extend(expected_back_up_reports)
-        expected_reports.extend(expected_processable_reports)
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertListEqual(processable_reports, expected_reports)
+    def test_returns_None_if_not_enough_processable_reports(self):
+        self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                 total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2,
+                                 start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                                 reports_delta=DEFAULT_REPORT_DELTA,
+                                 observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        self.assertIsNone(processable_observations)
+        self.assertIsNone(ip)
 
     def test_doesnt_return_reports_if_gap_threshold_exceeded_in_reports(self):
         first_processable_reports_qty = reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2
@@ -217,61 +201,76 @@ class TestReportsHandler(unittest.TestCase):
                                                               start_time=second_processable_reports_start_time,
                                                               reports_delta=DEFAULT_REPORT_DELTA,
                                                               observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertEquals(len(processable_reports), 0)
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        self.assertIsNone(ip)
+        self.assertIsNone(processable_observations)
+        self.assertIsNone(processable_observations)
 
-    def test_doesnt_return_reports_if_not_enough_processable_reports_and_not_enough_back_up_reports(self):
-        processable_observations_qty = (reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY -
-                                        reports.ReportHandler.BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD - 1) / 2
-        back_up_observations_qty = reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY
-        back_up_reports_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
-        expected_back_up_reports = self.create_report_files(dir_path=self.reports_handler.back_up_reports_dir_path,
-                                                            total_observations_qty=back_up_observations_qty,
-                                                            start_time=back_up_reports_start_time,
-                                                            reports_delta=DEFAULT_REPORT_DELTA,
-                                                            observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        last_timestamp = expected_back_up_reports[-1].observations[-1].day_timestamp
-        processable_observations_start_time = datetime.datetime.fromtimestamp(last_timestamp, tz=datetime.timezone.utc) \
-                                              + DEFAULT_OBSERVATIONS_DELTA
-        expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                                total_observations_qty=processable_observations_qty,
-                                                                start_time=processable_observations_start_time,
-                                                                reports_delta=DEFAULT_REPORT_DELTA,
-                                                                observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        expected_reports = list()
-        expected_reports.extend(expected_back_up_reports)
-        expected_reports.extend(expected_processable_reports)
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertEquals(len(processable_reports), 0)
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertEquals(len(processable_reports), 0)
-
-    def test_only_returns_max_observations_reports(self):
-        processable_observations_qty = reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY * 2
-        total_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                             total_observations_qty=processable_observations_qty,
-                                                             start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+    def test_doesnt_return_reports_if_not_enough_reports_from_one_ip(self):
+        first_processable_reports_qty = (reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2) + 1
+        second_processable_reports_qty = (reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY / 2) + 1
+        first_processable_reports_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        first_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                             total_observations_qty=first_processable_reports_qty,
+                                                             start_time=first_processable_reports_start_time,
                                                              reports_delta=DEFAULT_REPORT_DELTA,
                                                              observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        expected_processable_reports = list()
-        while reports.ReportHandler.calculate_observations_quantity(expected_processable_reports) < reports.ReportHandler.MAXIMUM_OBSERVATIONS_QTY:
-            report = total_processable_reports.pop(0)
-            expected_processable_reports.append(report)
-        remaining_processable_reports = total_processable_reports
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertListEqual(processable_reports, expected_processable_reports)
+        last_timestamp = first_processable_reports[-1].observations[-1].day_timestamp
+        second_processable_reports_start_time = datetime.datetime.fromtimestamp(last_timestamp,
+                                                                                tz=datetime.timezone.utc) \
+                                                + datetime.timedelta(seconds=1)
+        second_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                              total_observations_qty=second_processable_reports_qty,
+                                                              start_time=second_processable_reports_start_time,
+                                                              reports_delta=DEFAULT_REPORT_DELTA,
+                                                              observations_delta=DEFAULT_OBSERVATIONS_DELTA,
+                                                              from_dir='8.8.4.4')
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        self.assertIsNone(ip)
+        self.assertIsNone(processable_observations)
+        self.assertIsNone(processable_observations)
 
-    def test_back_up_reports(self):
-        created_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                   total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
-                                                   start_time=datetime.datetime.now(tz=datetime.timezone.utc),
-                                                   reports_delta=DEFAULT_REPORT_DELTA,
-                                                   observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        self.assertTrue(self.reports_handler.back_up_dir_is_empty())
-        self.reports_handler.back_up_reports(created_reports)
-        self.assertFalse(self.reports_handler.back_up_dir_is_empty())
-        processable_reports = self.reports_handler.get_processable_reports()
-        self.assertEquals(len(processable_reports), 0)
+    def test_multiple_continuous_processing_are_possible_after_refill(self):
+        expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                                total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
+                                                                start_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                                                                reports_delta=DEFAULT_REPORT_DELTA,
+                                                                observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        expected_ip, expected_processable_observations = reports.ReportHandler.collect_observations(expected_processable_reports)
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        self.assertEquals(processable_observations, expected_processable_observations)
+        self.assertEqual(ip, expected_ip)
+        self.reports_handler.delete_unneeded_reports()
+        existing_reports = [join(self.reports_handler.installation_dir_path, report_file_name)
+                           for report_file_name in sorted(listdir(self.reports_handler.installation_dir_path))
+                           if report_file_name.endswith('.json')]
+        self.assertTrue(len(existing_reports) != 0)
+        self.assertTrue(len(existing_reports) < len(expected_processable_reports))
+        last_timestamp = expected_processable_reports[-1].observations[-1].day_timestamp
+        new_processable_reports_start_time = datetime.datetime.fromtimestamp(last_timestamp, tz=datetime.timezone.utc)\
+            + datetime.timedelta(seconds=1)
+        new_expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
+                                                                    total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY // 2,
+                                                                    start_time=new_processable_reports_start_time,
+                                                                    reports_delta=DEFAULT_REPORT_DELTA,
+                                                                    observations_delta=DEFAULT_OBSERVATIONS_DELTA)
+        for i in range(len(expected_processable_reports) // 2):
+            expected_processable_reports.pop(i)
+        expected_processable_reports.extend(new_expected_processable_reports)
+        expected_ip, expected_observations = reports.ReportHandler.collect_observations(expected_processable_reports)
+        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
+        processable_observations_in_expected_observations = [observation
+                                                             for observation in processable_observations
+                                                             if observation in expected_observations]
+        expected_observations_in_processable_observations = [observation
+                                                             for observation in expected_observations
+                                                             if observation in processable_observations]
+        # Not testing on equals in the set because is not working
+        self.assertEquals(len(processable_observations), len(expected_observations))
+        self.assertEquals(len(processable_observations_in_expected_observations),
+                          len(expected_observations_in_processable_observations))
+        self.assertEquals(len(processable_observations), len(processable_observations_in_expected_observations))
+        self.assertEqual(ip, expected_ip)
 
     def test_collect_observations(self):
         created_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,

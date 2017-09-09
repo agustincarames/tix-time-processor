@@ -28,11 +28,9 @@ def process_installation(installation_dir_path, user_id, installation_id):
     logger.info('installation_dir_path: {installation_dir_path}'.format(installation_dir_path=installation_dir_path))
     try:
         reports_handler = reports.ReportHandler(installation_dir_path)
-        processable_reports = reports_handler.get_processable_reports()
-        while len(processable_reports) > 0:
-            clean_up = False
+        ip, observations = reports_handler.get_ip_and_processable_observations()
+        while ip is not None and observations is not None:
             try:
-                ip, observations = reports_handler.collect_observations(processable_reports)
                 logger.info('Analyzing {} observation for IP {} to user {} in installation {}'.format(len(observations),
                                                                                                       ip,
                                                                                                       user_id,
@@ -41,20 +39,12 @@ def process_installation(installation_dir_path, user_id, installation_id):
                 if not api_communication.post_results(ip, results, user_id, installation_id):
                     logger.warn('Could not post results to API. Backing up file for later.')
                     reports_handler.back_up_failed_results(results, ip)
-                clean_up = True
-            except NotEnoughObservationsError as neoe:
-                logger.warn('Not enough processable observations for any IP')
-                logger.warn(neoe.args)
-                clean_up = True
+                logger.info('Cleaning up')
+                reports_handler.delete_unneeded_reports()
+                ip, observations = reports_handler.get_ip_and_processable_observations()
             except Exception as e:
                 logger.error('Exception {} thrown'.format(e.__class__))
                 raise e
-            finally:
-                if clean_up:
-                    logger.info('Cleaning up')
-                    reports_handler.clean_back_up_dir()
-                    reports_handler.back_up_reports(processable_reports)
-                processable_reports = reports_handler.get_processable_reports()
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))
