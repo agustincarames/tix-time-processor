@@ -233,6 +233,10 @@ def get_quality(observations, upstream_hurst, downstream_hurst, phi_function):
     downstream_congestion = 0
     effective_upstream_hurst = calculate_effective_hurst(upstream_hurst)
     effective_downstream_hurst = calculate_effective_hurst(downstream_hurst)
+    obspm_items = list(observations_per_minute.items())
+    for minute, m_observations in obspm_items:
+        if len(m_observations) < 30:
+            observations_per_minute.pop(minute, None)
     for minute, m_observations in observations_per_minute.items():
         upstream_usage, downstream_usage = get_usage(m_observations, phi_function)
         if upstream_usage < CONGESTION_THRESHOLD and effective_upstream_hurst > HURST_CONGESTION_THRESHOLD:
