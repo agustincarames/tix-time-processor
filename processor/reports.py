@@ -98,6 +98,9 @@ class Observation:
                      self.sent_timestamp_nanos,
                      self.final_timestamp_nanos))
 
+    def __repr__(self):
+        return '{0!s}({1!r})'.format(self.__class__, self.__dict__)
+
 
 class SerializedObservationField:
     def __init__(self, name, report_field_type):

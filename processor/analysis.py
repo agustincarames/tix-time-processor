@@ -38,7 +38,7 @@ def downstream_time_function(observation, phi_function):
 def generate_histogram(observations, histogram_sorting_key_function):
     observations = sorted(observations, key=histogram_sorting_key_function)
     bines_qty = int(floor(sqrt(len(observations))))
-    datapoints_per_bin = int(len(observations) / bines_qty)
+    datapoints_per_bin = len(observations) // bines_qty
     histogram = list()
     for _ in range(bines_qty):
         histogram.append(list())
