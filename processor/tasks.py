@@ -35,7 +35,8 @@ def process_installation(installation_dir_path, user_id, installation_id):
                                                                                                       ip,
                                                                                                       user_id,
                                                                                                       installation_id))
-                results = analysis.process_observations(list(observations))
+                analyzer = analysis.Analyzer(observations)
+                results = analyzer.get_results()
                 if not api_communication.post_results(ip, results, user_id, installation_id):
                     logger.warn('Could not post results to API. Backing up file for later.')
                     reports_handler.back_up_failed_results(results, ip)
