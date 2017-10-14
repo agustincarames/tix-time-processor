@@ -422,8 +422,8 @@ class ReportHandler:
     def __get_processable_reports(self):
         self.__update_reports_files()
         processable_reports = list()
-        while self.calculate_observations_quantity(processable_reports) < self.MINIMUM_OBSERVATIONS_QTY and \
-                        len(self.reports_files) > 0:
+        while (self.calculate_observations_quantity(processable_reports) < self.MINIMUM_OBSERVATIONS_QTY and
+               len(self.reports_files) > 0):
             new_report = Report.load(self.reports_files.pop(0))
             # Ensure all processable reports are from the same IP
             if len(processable_reports) > 0:

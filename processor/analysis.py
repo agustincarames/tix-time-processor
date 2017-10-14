@@ -88,10 +88,8 @@ class SameSizeBinHistogram:
             self.bins[-1].update(self.data[threshold:])
 
     def _generate_bins_probabilities(self):
-        probabilities = []
         total_datapoints = sum([len(bin_.data) for bin_ in self.bins])
-        for bin_ in self.bins:
-            probabilities.append(len(bin_.data) / (total_datapoints * bin_.width))
+        probabilities = [len(bin_.data) / (total_datapoints * bin_.width) for bin_ in self.bins]
         return probabilities
 
     def _generate_probabilities_mode_and_threshold(self):
