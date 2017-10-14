@@ -61,7 +61,7 @@ class Bin:
         return self.min_value + self.width // 2
 
 
-class SameSizeBinHistogram:
+class FixedSizeBinHistogram:
     DEFAULT_ALPHA = 0.5
 
     def __init__(self, data, characterization_function, alpha=DEFAULT_ALPHA):
@@ -161,8 +161,8 @@ class UsageCalculator:
                                                   phi_function=self.clock_fixer.phi_function)
         self.downstream_time_key_function = partial(downstream_time_function,
                                                     phi_function=self.clock_fixer.phi_function)
-        self.upstream_histogram = SameSizeBinHistogram(observations, self.upstream_time_key_function)
-        self.downstream_histogram = SameSizeBinHistogram(observations, self.downstream_time_key_function)
+        self.upstream_histogram = FixedSizeBinHistogram(observations, self.upstream_time_key_function)
+        self.downstream_histogram = FixedSizeBinHistogram(observations, self.downstream_time_key_function)
         self.upstream_usage, self.downstream_usage = self._calculate_usage()
 
     def _calculate_usage(self):
@@ -270,8 +270,8 @@ class Analyzer:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.observations = [observation for observation in observations_set if observation.type_identifier == b'S']
         self.meaningful_observations = self.calculate_meaningful_observations()
-        self.rtt_histogram = SameSizeBinHistogram(data=self.observations,
-                                                  characterization_function=observation_rtt_key_function)
+        self.rtt_histogram = FixedSizeBinHistogram(data=self.observations,
+                                                   characterization_function=observation_rtt_key_function)
         self.clock_fixer = ClockFixer(self.observations, tau=self.rtt_histogram.mode)
         self.usage_calculator = UsageCalculator(self.meaningful_observations, self.clock_fixer)
         self.hurst_calculator = HurstCalculator(self.meaningful_observations, self.clock_fixer)
