@@ -119,7 +119,8 @@ class ClockFixer:
                                    key=lambda o: o.day_timestamp)
         self.tau = tau
         self.update_observations_with_clocks_corrections()
-        self.slope, self.intercept = self._get_phi_function_parameters()
+        self.phis_for_minute = self._get_phis_for_minute()
+        self.slope, self.intercept, self.r_value, self.p_value, self.std_err = self._get_phi_function_parameters()
 
     def update_observations_with_clocks_corrections(self,
                                                     downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
@@ -132,7 +133,7 @@ class ClockFixer:
             observation.downstream_phi = downstream_phi
             observation.estimated_phi = estimated_phi
 
-    def _get_phis_by_minute(self):
+    def _get_phis_for_minute(self):
         step = 60
         phis = []
         for index in range(step, len(self.observations)):
@@ -143,12 +144,11 @@ class ClockFixer:
         return phis
 
     def _get_phi_function_parameters(self):
-        phis_by_minute = self._get_phis_by_minute()
-        minutes, phis = tuple(zip(*phis_by_minute))
-        minutes_arr = np.asarray(minutes)
+        timestamps, phis = tuple(zip(*self.phis_for_minute))
+        timestamps_arr = np.asarray(timestamps)
         phis_arr = np.asarray(phis)
-        slope, intercept, r_value, p_value, std_err = stats.linregress(minutes_arr, phis_arr)
-        return slope, intercept
+        slope, intercept, r_value, p_value, std_err = stats.linregress(timestamps_arr, phis_arr)
+        return slope, intercept, r_value, p_value, std_err
 
     @property
     def phi_function(self):
