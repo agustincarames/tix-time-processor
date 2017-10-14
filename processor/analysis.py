@@ -115,7 +115,8 @@ class ClockFixer:
         return x * slope + intercept
 
     def __init__(self, observations, tau):
-        self.observations = observations
+        self.observations = sorted(observations,
+                                   key=lambda o: o.day_timestamp)
         self.tau = tau
         self.update_observations_with_clocks_corrections()
         self.slope, self.intercept = self._get_phi_function_parameters()
@@ -124,26 +125,26 @@ class ClockFixer:
                                                     downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
                                                     upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
         for observation in self.observations:
-            upstream_phi = observation.reception_timestamp - observation.initial_timestamp \
-                           - upstream_serialization_time - self.tau
-            downstream_phi = observation.sent_timestamp - observation.final_timestamp \
-                             + downstream_serialization_time + self.tau
+            upstream_phi = observation.initial_timestamp - observation.reception_timestamp
+            downstream_phi = observation.sent_timestamp - observation.final_timestamp
             estimated_phi = (downstream_phi + upstream_phi) / 2
             observation.upstream_phi = upstream_phi
             observation.downstream_phi = downstream_phi
             observation.estimated_phi = estimated_phi
 
-    def _get_phis_per_minute(self):
-        observations_per_minute = divide_observations_into_minutes(self.observations)
+    def _get_phis_by_minute(self):
+        step = 60
         phis = []
-        for minute, observations in observations_per_minute.items():
-            bucket_phi = statistics.median([observation.estimated_phi for observation in observations])
-            phis.append((minute, bucket_phi))
+        for index in range(step, len(self.observations)):
+            observations = self.observations[index - step:index]
+            phi_timstamp = observations[-1].day_timestamp
+            phi = statistics.median([observation.estimated_phi for observation in observations])
+            phis.append((phi_timstamp, phi))
         return phis
 
     def _get_phi_function_parameters(self):
-        phis_per_minute = self._get_phis_per_minute()
-        minutes, phis = tuple(zip(*phis_per_minute))
+        phis_by_minute = self._get_phis_by_minute()
+        minutes, phis = tuple(zip(*phis_by_minute))
         minutes_arr = np.asarray(minutes)
         phis_arr = np.asarray(phis)
         slope, intercept, r_value, p_value, std_err = stats.linregress(minutes_arr, phis_arr)

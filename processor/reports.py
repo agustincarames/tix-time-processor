@@ -322,7 +322,7 @@ class NotEnoughObservationsError(Exception):
 
 
 class ReportHandler:
-    MINIMUM_OBSERVATIONS_QTY = 1024
+    MINIMUM_OBSERVATIONS_QTY = 1024 + 60  # We need 1024 observation points plus a minute for analysis
     MAXIMUM_OBSERVATIONS_QTY = 1200
     BACK_UP_OBSERVATIONS_QTY_PROCESSING_THRESHOLD = 540
     GAP_THRESHOLD = int(datetime.timedelta(minutes=5).total_seconds())
