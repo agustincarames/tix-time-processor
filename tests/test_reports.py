@@ -230,48 +230,6 @@ class TestReportsHandler(unittest.TestCase):
         self.assertIsNone(processable_observations)
         self.assertIsNone(processable_observations)
 
-    def test_multiple_continuous_processing_are_possible_after_refill(self):
-        expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                                total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
-                                                                start_time=datetime.datetime.now(tz=datetime.timezone.utc),
-                                                                reports_delta=DEFAULT_REPORT_DELTA,
-                                                                observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        expected_ip, expected_processable_observations = reports.ReportHandler.collect_observations(expected_processable_reports)
-        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
-        self.assertEquals(processable_observations, expected_processable_observations)
-        self.assertEqual(ip, expected_ip)
-        self.reports_handler.delete_unneeded_reports()
-        existing_reports = [join(self.reports_handler.installation_dir_path, report_file_name)
-                           for report_file_name in sorted(listdir(self.reports_handler.installation_dir_path))
-                           if report_file_name.endswith('.json')]
-        self.assertTrue(len(existing_reports) != 0)
-        self.assertTrue(len(existing_reports) < len(expected_processable_reports))
-        last_timestamp = expected_processable_reports[-1].observations[-1].day_timestamp
-        new_processable_reports_start_time = datetime.datetime.fromtimestamp(last_timestamp, tz=datetime.timezone.utc)\
-            + datetime.timedelta(seconds=1)
-        new_expected_processable_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
-                                                                    total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY // 2,
-                                                                    start_time=new_processable_reports_start_time,
-                                                                    reports_delta=DEFAULT_REPORT_DELTA,
-                                                                    observations_delta=DEFAULT_OBSERVATIONS_DELTA)
-        for i in range(len(expected_processable_reports) // 2):
-            expected_processable_reports.pop(i)
-        expected_processable_reports.extend(new_expected_processable_reports)
-        expected_ip, expected_observations = reports.ReportHandler.collect_observations(expected_processable_reports)
-        ip, processable_observations = self.reports_handler.get_ip_and_processable_observations()
-        processable_observations_in_expected_observations = [observation
-                                                             for observation in processable_observations
-                                                             if observation in expected_observations]
-        expected_observations_in_processable_observations = [observation
-                                                             for observation in expected_observations
-                                                             if observation in processable_observations]
-        # Not testing on equals in the set because is not working
-        self.assertEquals(len(processable_observations), len(expected_observations))
-        self.assertEquals(len(processable_observations_in_expected_observations),
-                          len(expected_observations_in_processable_observations))
-        self.assertEquals(len(processable_observations), len(processable_observations_in_expected_observations))
-        self.assertEqual(ip, expected_ip)
-
     def test_collect_observations(self):
         created_reports = self.create_report_files(dir_path=self.reports_handler.installation_dir_path,
                                                    total_observations_qty=reports.ReportHandler.MINIMUM_OBSERVATIONS_QTY,
