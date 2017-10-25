@@ -16,7 +16,9 @@ def observation_rtt_key_function(observation):
 
 
 def upstream_time_function(observation, phi_function):
-    return observation.reception_timestamp - phi_function(observation.day_timestamp) \
+    # return observation.reception_timestamp - phi_function(observation.day_timestamp) \
+    #        - observation.initial_timestamp
+    return observation.reception_timestamp + phi_function(observation.day_timestamp) \
            - observation.initial_timestamp
 
 
@@ -108,49 +110,46 @@ class ClockFixer:
     UPSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
     DOWNSTREAM_SERIALIZATION_TIME = 15 * (10 ** 3)  # 15 micro
 
-    @staticmethod
-    def base_phi_function(slope, intercept, x):
-        return x * slope + intercept
-
     def __init__(self, observations, tau):
         self.observations = sorted(observations,
                                    key=lambda o: o.day_timestamp)
-        self.tau = tau
-        self.update_observations_with_clocks_corrections()
-        self.phis_for_minute = self._get_phis_for_minute()
-        self.slope, self.intercept, self.r_value, self.p_value, self.std_err = self._get_phi_function_parameters()
 
-    def update_observations_with_clocks_corrections(self,
-                                                    downstream_serialization_time=DOWNSTREAM_SERIALIZATION_TIME,
-                                                    upstream_serialization_time=UPSTREAM_SERIALIZATION_TIME):
-        for observation in self.observations:
-            upstream_phi = observation.initial_timestamp - observation.reception_timestamp
-            downstream_phi = observation.sent_timestamp - observation.final_timestamp
-            estimated_phi = (downstream_phi + upstream_phi) / 2
-            observation.upstream_phi = upstream_phi
-            observation.downstream_phi = downstream_phi
-            observation.estimated_phi = estimated_phi
+    def _between_obs(self, day_timestamp):
+        obs = tuple()
+        if day_timestamp < self.observations[0].day_timestamp:
+            obs = (None, self.observations[0])
+        elif day_timestamp >= self.observations[-1].day_timestamp:
+            obs = (self.observations[-1], None)
+        else:
+            for index in range(len(self.observations) - 1):
+                if self.observations[index].day_timestamp <= day_timestamp < self.observations[index + 1].day_timestamp:
+                    obs = (self.observations[index], self.observations[index + 1])
+        return obs
 
-    def _get_phis_for_minute(self):
-        step = 60
-        phis = []
-        for index in range(step, len(self.observations)):
-            observations = self.observations[index - step:index]
-            phi_timstamp = observations[-1].day_timestamp
-            phi = statistics.median([observation.estimated_phi for observation in observations])
-            phis.append((phi_timstamp, phi))
-        return phis
+    def _calculate_observation_phi(self, observation):
+        if observation is None:
+            return None
+        return observation.initial_timestamp - observation.reception_timestamp + \
+               ((observation.reception_timestamp - observation.initial_timestamp) +
+                (observation.final_timestamp - observation.sent_timestamp)) / 2
 
-    def _get_phi_function_parameters(self):
-        timestamps, phis = tuple(zip(*self.phis_for_minute))
-        timestamps_arr = np.asarray(timestamps)
-        phis_arr = np.asarray(phis)
-        slope, intercept, r_value, p_value, std_err = stats.linregress(timestamps_arr, phis_arr)
-        return slope, intercept, r_value, p_value, std_err
+    def _base_phi_function(self, x):
+        obs_before, obs_after = self._between_obs(x)
+        phi_before = self._calculate_observation_phi(obs_before)
+        phi_after = self._calculate_observation_phi(obs_after)
+        slope = 0
+        if phi_before is not None and phi_after is not None:
+            slope = (phi_before - phi_after) / (obs_before.day_timestamp - obs_after.day_timestamp)
+        intercept = 0
+        if phi_before is None:
+            intercept = phi_after - obs_after.day_timestamp * slope
+        else:
+            intercept = phi_before - obs_before.day_timestamp * slope
+        return x * slope + intercept
 
     @property
     def phi_function(self):
-        return partial(self.base_phi_function, self.slope, self.intercept)
+        return self._base_phi_function
 
 
 class UsageCalculator:
@@ -272,7 +271,7 @@ class Analyzer:
         self.meaningful_observations = self.calculate_meaningful_observations()
         self.rtt_histogram = FixedSizeBinHistogram(data=self.observations,
                                                    characterization_function=observation_rtt_key_function)
-        self.clock_fixer = ClockFixer(self.observations, tau=self.rtt_histogram.mode)
+        self.clock_fixer = ClockFixer(self.rtt_histogram.bins[0].data, tau=self.rtt_histogram.mode)
         self.usage_calculator = UsageCalculator(self.meaningful_observations, self.clock_fixer)
         self.hurst_calculator = HurstCalculator(self.meaningful_observations, self.clock_fixer)
         self.quality_calculator = QualityCalculator(self.meaningful_observations,
