@@ -18,13 +18,12 @@ def observation_rtt_key_function(observation):
 def upstream_time_function(observation, phi_function):
     # return observation.reception_timestamp - phi_function(observation.day_timestamp) \
     #        - observation.initial_timestamp
-    return observation.reception_timestamp + phi_function(observation.day_timestamp) \
-           - observation.initial_timestamp
+    return (observation.reception_timestamp + phi_function(observation.day_timestamp)) \
+            - observation.initial_timestamp
 
 
 def downstream_time_function(observation, phi_function):
-    return observation.final_timestamp - observation.sent_timestamp \
-           + phi_function(observation.day_timestamp)
+    return observation.final_timestamp - (observation.sent_timestamp + phi_function(observation.day_timestamp))
 
 
 def divide_observations_into_minutes(observations):
@@ -91,7 +90,9 @@ class FixedSizeBinHistogram:
 
     def _generate_bins_probabilities(self):
         total_datapoints = sum([len(bin_.data) for bin_ in self.bins])
-        probabilities = [len(bin_.data) / (total_datapoints * bin_.width) for bin_ in self.bins]
+        total_width = self.bins[-1].max_value - self.bins[0].min_value
+        probabilities = [(total_datapoints * total_width) / (len(bin_.data) * bin_.width)
+                         for bin_ in self.bins]
         return probabilities
 
     def _generate_probabilities_mode_and_threshold(self):
@@ -118,20 +119,21 @@ class ClockFixer:
         obs = tuple()
         if day_timestamp < self.observations[0].day_timestamp:
             obs = (None, self.observations[0])
-        elif day_timestamp >= self.observations[-1].day_timestamp:
+        elif self.observations[-1].day_timestamp <= day_timestamp:
             obs = (self.observations[-1], None)
         else:
             for index in range(len(self.observations) - 1):
                 if self.observations[index].day_timestamp <= day_timestamp < self.observations[index + 1].day_timestamp:
                     obs = (self.observations[index], self.observations[index + 1])
+                    break
         return obs
 
     def _calculate_observation_phi(self, observation):
         if observation is None:
             return None
-        return observation.initial_timestamp - observation.reception_timestamp + \
-               ((observation.reception_timestamp - observation.initial_timestamp) +
-                (observation.final_timestamp - observation.sent_timestamp)) / 2
+        return (observation.initial_timestamp - observation.reception_timestamp +
+                ((observation.reception_timestamp - observation.initial_timestamp) +
+                 (observation.final_timestamp - observation.sent_timestamp)) / 2)
 
     def _base_phi_function(self, x):
         obs_before, obs_after = self._between_obs(x)
