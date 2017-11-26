@@ -32,3 +32,6 @@ var/
 .installed.cfg
 *.egg
 
+## Project stuff
+batch-test-reports/
+
