@@ -1,11 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import logging
-import statistics
 from functools import partial
 from operator import attrgetter
 
-import numpy as np
-from scipy import stats
 from math import floor, sqrt, log as log_function
 
 from processor import hurst
@@ -16,8 +13,6 @@ def observation_rtt_key_function(observation):
 
 
 def upstream_time_function(observation, phi_function):
-    # return observation.reception_timestamp - phi_function(observation.day_timestamp) \
-    #        - observation.initial_timestamp
     return (observation.reception_timestamp + phi_function(observation.day_timestamp)) \
             - observation.initial_timestamp
 
@@ -93,14 +88,16 @@ class FixedSizeBinHistogram:
         total_width = self.bins[-1].max_value - self.bins[0].min_value
         probabilities = [(total_datapoints * total_width) / (len(bin_.data) * bin_.width)
                          for bin_ in self.bins]
-        return probabilities
+        return list(probabilities)
 
     def _generate_probabilities_mode_and_threshold(self):
         probabilities = self._generate_bins_probabilities()
-        mode = max(probabilities)
-        mode_index = probabilities.index(mode)
+        representative_bins = 2 * int(sqrt(len(self.bins)))
+        representative_probabilities = probabilities[:representative_bins]
+        mode = max(representative_probabilities)
+        mode_index = representative_probabilities.index(mode)
         mode_value = self.bins[mode_index].mid_value
-        if probabilities[0] == mode:
+        if representative_probabilities[0] == mode:
             threshold = self.bins[1].mid_value
         else:
             threshold = mode_value + self.alpha * self.bins[0].mid_value
@@ -169,6 +166,8 @@ class UsageCalculator:
     def _calculate_usage(self):
         upstream_over_threshold = 0
         downstream_over_threshold = 0
+        upstream_over_mode = 0
+        downstream_over_mode = 0
         for observation in self.observations:
             upstream_time = self.upstream_time_key_function(observation)
             downstream_time = self.downstream_time_key_function(observation)
@@ -176,8 +175,12 @@ class UsageCalculator:
                 upstream_over_threshold += 1
             if downstream_time > self.downstream_histogram.threshold:
                 downstream_over_threshold += 1
-        upstream_usage = upstream_over_threshold / len(self.observations)
-        downstream_usage = downstream_over_threshold / len(self.observations)
+            if upstream_time > self.upstream_histogram.mode:
+                upstream_over_mode += 1
+            if downstream_time > self.downstream_histogram.mode:
+                downstream_over_mode += 1
+        upstream_usage = upstream_over_threshold / upstream_over_mode
+        downstream_usage = downstream_over_threshold / downstream_over_mode
         return upstream_usage, downstream_usage
 
 
