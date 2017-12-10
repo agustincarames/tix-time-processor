@@ -402,7 +402,7 @@ class ReportHandler:
         if not exists(self.failed_results_dir_path):
             mkdir(self.failed_results_dir_path)
         self.reports_files = list()
-        self.__processable_reports = list()
+        self.processable_reports = list()
         self.__update_reports_files()
 
     def __update_reports_files(self):
@@ -419,7 +419,7 @@ class ReportHandler:
             reports_after = list()
         return reports_before, reports_after
 
-    def __get_processable_reports(self):
+    def update_processable_reports(self):
         self.__update_reports_files()
         processable_reports = list()
         while (self.calculate_observations_quantity(processable_reports) < self.MINIMUM_OBSERVATIONS_QTY and
@@ -442,23 +442,21 @@ class ReportHandler:
                 else:
                     processable_reports = reports_before_gap
         if self.calculate_observations_quantity(processable_reports) < self.MINIMUM_OBSERVATIONS_QTY:
-            self.__processable_reports = list()
+            self.processable_reports = list()
         else:
-            self.__processable_reports = processable_reports
+            self.processable_reports = processable_reports
 
     def get_ip_and_processable_observations(self):
-        self.__get_processable_reports()
-        if len(self.__processable_reports) == 0:
+        self.update_processable_reports()
+        if len(self.processable_reports) == 0:
             ip, observations = None, None
         else:
-            ip, observations = self.collect_observations(self.__processable_reports)
+            ip, observations = self.collect_observations(self.processable_reports)
         return ip, observations
 
     def delete_unneeded_reports(self):
-        reports_to_delete_qty = len(self.__processable_reports) // 2
-        reports_to_delete = list()
-        for i in range(reports_to_delete_qty):
-            reports_to_delete.append(self.__processable_reports.pop(i))
+        reports_to_delete_qty = len(self.processable_reports) // 2
+        reports_to_delete = self.processable_reports[:reports_to_delete_qty]
         self.delete_reports_files(reports_to_delete)
 
     def failed_results_dir_is_empty(self):
