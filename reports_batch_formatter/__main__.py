@@ -27,7 +27,7 @@ def reshape_results(working_directory):
     reports_handler = reports.ReportHandler(working_directory)
     reports_handler.update_processable_reports()
     while len(reports_handler.processable_reports) > 0 and \
-            reports_handler.MINIMUM_OBSERVATIONS_QTY < reports_handler.calculate_observations_quantity(reports_handler.processable_reports):
+            reports_handler.MINIMUM_OBSERVATIONS_QTY <= reports_handler.calculate_observations_quantity(reports_handler.processable_reports):
         create_batch_dir(working_directory, reports_handler)
         reports_handler.delete_unneeded_reports()
         reports_handler.update_processable_reports()
