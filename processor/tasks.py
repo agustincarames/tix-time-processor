@@ -1,15 +1,16 @@
 import traceback
-from os import listdir
+from os import listdir, unlink
 
 import logging
-from celery.schedules import crontab
-from os.path import join, isdir
 
-from processor import app, REPORTS_BASE_PATH
+import filelock
+from celery.schedules import crontab
+from os.path import join, isdir, exists
+
+from processor import app, REPORTS_BASE_PATH, PROCESSING_PERIOD
 from processor import reports
 from processor import api_communication
 from processor import analysis
-from processor.reports import NotEnoughObservationsError
 
 tasks_logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ tasks_logger = logging.getLogger(__name__)
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
-        crontab(minute='*/1'),
+        crontab(minute='*/{}'.format(PROCESSING_PERIOD)),
         process_users_data.s(REPORTS_BASE_PATH),
         name='process_users_data')
 
@@ -26,11 +27,14 @@ def setup_periodic_tasks(sender, **kwargs):
 def process_installation(installation_dir_path, user_id, installation_id):
     logger = tasks_logger.getChild('process_installation')
     logger.info('installation_dir_path: {installation_dir_path}'.format(installation_dir_path=installation_dir_path))
+    lock = filelock.FileLock('.lock-{user_id}-{installation_id}'.format(user_id=user_id,
+                                                                        installation_id=installation_id))
+    lock.timeout = PROCESSING_PERIOD * 60
     try:
-        reports_handler = reports.ReportHandler(installation_dir_path)
-        ip, observations = reports_handler.get_ip_and_processable_observations()
-        while ip is not None and observations is not None:
-            try:
+        with lock:
+            reports_handler = reports.ReportHandler(installation_dir_path)
+            ip, observations = reports_handler.get_ip_and_processable_observations()
+            while ip is not None and observations is not None:
                 logger.info('Analyzing {} observation for IP {} to user {} in installation {}'.format(len(observations),
                                                                                                       ip,
                                                                                                       user_id,
@@ -43,13 +47,15 @@ def process_installation(installation_dir_path, user_id, installation_id):
                 logger.info('Cleaning up')
                 reports_handler.delete_unneeded_reports()
                 ip, observations = reports_handler.get_ip_and_processable_observations()
-            except Exception as e:
-                logger.error('Exception {} thrown'.format(e.__class__))
-                raise e
+        if exists(lock.lock_file):
+            unlink(lock.lock_file)
+    except filelock.Timeout:
+        logger.error('Timeout while processing. The process took too long.')
     except:
         logger.error('Error while trying to process installation {}'.format(installation_dir_path))
         logger.error('Exception caught {}'.format(traceback.format_exc()))
         raise
+
 
 
 @app.task

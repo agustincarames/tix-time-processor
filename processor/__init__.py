@@ -4,6 +4,7 @@ import os
 from celery import Celery
 
 REPORTS_BASE_PATH = os.environ.get('TIX_REPORTS_BASE_PATH', '/tmp/reports')
+PROCESSING_PERIOD = int(os.environ.get('TIX_PROCESSING_PERIOD', '5'))
 RABBITMQ_USER = os.environ.get('TIX_RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('TIX_RABBITMQ_PASS', 'guest')
 RABBITMQ_HOST = os.environ.get('TIX_RABBITMQ_HOST', 'localhost')
