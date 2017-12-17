@@ -57,7 +57,6 @@ def process_installation(installation_dir_path, user_id, installation_id):
         raise
 
 
-
 @app.task
 def process_users_data(reports_base_path):
     logger = tasks_logger.getChild('process_users_data')
