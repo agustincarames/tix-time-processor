@@ -9,8 +9,8 @@ services:
   - rabbitmq
 
 install:
-  #- sudo apt-get install libsdl2-dev libffi-dev
   - pip install -r requirements.txt
+  - pip install -r requirements-test.txt
 
 script:
   - nosetests --with-xunit --with-coverage --cover-package=processor --cover-branches --cover-xml tests
