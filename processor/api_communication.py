@@ -8,8 +8,6 @@ from requests.auth import HTTPBasicAuth
 TIX_API_SSL = os.environ.get('TIX_API_SSL') is not None
 TIX_API_HOST = os.environ.get('TIX_API_HOST', 'localhost')
 TIX_API_PORT = os.environ.get('TIX_API_PORT')
-TIX_API_USER = os.environ.get('TIX_API_USER')
-TIX_API_PASS = os.environ.get('TIX_API_PASSWORD')
 TIX_API_URL_TEMPLATE = '{proto}://{api_host}/api/user/{user_id}/installation/{installation_id}/reports'
 
 logger = logging.getLogger(__name__)
@@ -51,7 +49,7 @@ def prepare_url(user_id, installation_id, tix_api_ssl=TIX_API_SSL, tix_api_host=
     return url
 
 
-def post_results(ip, results, user_id, installation_id, tix_api_user=TIX_API_USER, tix_api_pass=TIX_API_PASS):
+def post_results(ip, results, user_id, installation_id):
     log = logger.getChild('post_results')
     log.info('posting results for user {user_id} installation {installation_id}'.format(user_id=user_id,
                                                                                         installation_id=installation_id))
@@ -59,13 +57,9 @@ def post_results(ip, results, user_id, installation_id, tix_api_user=TIX_API_USE
     log.debug('json_data={json_data}'.format(json_data=json_data))
     url = prepare_url(user_id, installation_id)
     log.debug('url={url}'.format(url=url))
-    if not tix_api_user or not tix_api_pass:
-        log.warn('No user nor password supplied for API Connection')
-        return False
     try:
         response = requests.post(url=url,
-                                 json=json_data,
-                                 auth=HTTPBasicAuth(tix_api_user, tix_api_pass))
+                                 json=json_data)
         if response.status_code not in (200, 204):
             log.error('Error while trying to post to API, got status code {status_code} for url {url}'
                       .format(status_code=response.status_code,
