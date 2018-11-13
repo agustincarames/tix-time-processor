@@ -56,7 +56,6 @@ def post_results(ip, results, user_id, installation_id):
     json_data = prepare_results_for_api(results, ip)
     log.debug('json_data={json_data}'.format(json_data=json_data))
     url = prepare_url(user_id, installation_id)
-    log.debug('url={url}'.format(url=url))
     try:
         response = requests.post(url=url,
                                  json=json_data)
@@ -66,7 +65,7 @@ def post_results(ip, results, user_id, installation_id):
                               url=url))
             return False
     except RequestException as re:
-        log.error('Error while trying to post to API')
+        log.error('Error while trying to post to API for url {url}'.format(url=url))
         log.error(re)
         return False
     return True

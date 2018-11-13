@@ -34,6 +34,7 @@ def process_installation(installation_dir_path, user_id, installation_id):
         with lock:
             reports_handler = reports.ReportHandler(installation_dir_path)
             ip, observations = reports_handler.get_ip_and_processable_observations()
+            logger.info('ip == None: {ip}, observations == None: {observations}'.format(ip=ip is None, observations=observations is None))
             while ip is not None and observations is not None:
                 logger.info('Analyzing {} observation for IP {} to user {} in installation {}'.format(len(observations),
                                                                                                       ip,
