@@ -5,9 +5,9 @@ import requests
 from requests import RequestException
 from requests.auth import HTTPBasicAuth
 
-TIX_API_SSL = os.environ.get('TIX_API_SSL') is not None
+TIX_API_SSL = os.environ.get('TIX_API_SSL', 'False').lower() in ('yes', 'true')
 TIX_API_HOST = os.environ.get('TIX_API_HOST', 'localhost')
-TIX_API_PORT = os.environ.get('TIX_API_PORT')
+TIX_API_PORT = os.environ.get('TIX_API_PORT', '3002')
 TIX_API_URL_TEMPLATE = '{proto}://{api_host}/api/user/{user_id}/installation/{installation_id}/reports'
 
 logger = logging.getLogger(__name__)
