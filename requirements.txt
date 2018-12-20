@@ -9,6 +9,7 @@ jsonschema
 kombu
 numpy
 packaging
+pika
 pyparsing
 python-dateutil
 pytz

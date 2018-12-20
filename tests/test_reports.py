@@ -11,7 +11,7 @@ from os import unlink, getcwd, listdir
 
 from os.path import join, exists
 
-from processor import reports
+from processor import reports, report_parser
 
 DEFAULT_REPORT_DELTA = datetime.timedelta(minutes=1)
 DEFAULT_OBSERVATIONS_DELTA = datetime.timedelta(seconds=1)
@@ -42,8 +42,8 @@ def generate_observations(start_time, report_delta, observations_delta):
         sent_timestamp = (reception_timestamp + processing_time) % NANOS_IN_A_DAY
         transmission_time = random.randint(1, 10 ** 9)
         final_timestamp = (sent_timestamp + transmission_time) % NANOS_IN_A_DAY
-        observation = reports.Observation(day_timestamp, type_identifier, packet_size,
-                                          initial_timestamp, reception_timestamp, sent_timestamp, final_timestamp)
+        observation = reports_parser.Observation(day_timestamp, type_identifier, packet_size,
+                                                 initial_timestamp, reception_timestamp, sent_timestamp, final_timestamp)
         observations.append(observation)
         current_time += observations_delta
     return observations
@@ -79,21 +79,21 @@ TO_DIR = '8.8.8.8:4500'
 class TestReports(unittest.TestCase):
     def test_JSONCoDec(self):
         report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
-        json_report_string = json.dumps(report, cls=reports.ReportJSONEncoder)
-        other_report = json.loads(json_report_string, cls=reports.ReportJSONDecoder)
+        json_report_string = json.dumps(report, cls=reports_parser.ReportJSONEncoder)
+        other_report = json.loads(json_report_string, cls=reports_parser.ReportJSONDecoder)
         self.assertEqual(report, other_report)
         naive_json_report = json.loads(json_report_string)
-        jsonschema.validate(naive_json_report, reports.JSON_REPORT_SCHEMA)
+        jsonschema.validate(naive_json_report, reports_parser.JSON_REPORT_SCHEMA)
 
 
 class TestReport(unittest.TestCase):
     def test_load(self):
         report_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
         original_report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
-        json.dump(original_report, report_file, cls=reports.ReportJSONEncoder)
+        json.dump(original_report, report_file, cls=reports_parser.ReportJSONEncoder)
         report_file_path = report_file.name
         report_file.close()
-        loaded_report = reports.Report.load(report_file_path)
+        loaded_report = reports_parser.Report.load(report_file_path)
         self.assertIsNotNone(loaded_report.file_path)
         self.assertNotEquals(original_report, loaded_report)
         loaded_report.file_path = None
@@ -105,8 +105,8 @@ class TestReport(unittest.TestCase):
         current_working_directory = getcwd()
         tests_path = 'tests'
         report_file_path = join(current_working_directory, tests_path, report_file_name)
-        report = reports.Report.load(report_file_path)
-        self.assertTrue(isinstance(report, reports.Report))
+        report = reports_parser.Report.load(report_file_path)
+        self.assertTrue(isinstance(report, reports_parser.Report))
 
     def test_get_observations_gap(self):
         report = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID)
@@ -119,7 +119,7 @@ class TestReport(unittest.TestCase):
         reports_gap = DEFAULT_REPORT_DELTA
         report1 = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID, current_time)
         report2 = generate_report(FROM_DIR, TO_DIR, USER_ID, INSTALLATION_ID, current_time + reports_gap)
-        gap = reports.Report.get_gap_between_reports(report2, report1)
+        gap = reports_parser.Report.get_gap_between_reports(report2, report1)
         expected_gap = reports_gap.total_seconds()
         self.assertEqual(gap, expected_gap)
 
@@ -139,7 +139,7 @@ class TestReportsHandler(unittest.TestCase):
             report_file_name = 'tix-report-{timestamp}.json'.format(timestamp=report.observations[0].day_timestamp)
             report_path = join(dir_path, report_file_name)
             with open(report_path, 'w') as report_fp:
-                json.dump(report, report_fp, cls=reports.ReportJSONEncoder)
+                json.dump(report, report_fp, cls=reports_parser.ReportJSONEncoder)
             report.file_path = report_path
             observations_qty += len(report.observations)
             start_time += reports_delta
