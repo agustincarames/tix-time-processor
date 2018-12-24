@@ -260,8 +260,7 @@ class Report:
 
     @staticmethod
     def loads(report_json):
-        report = json.loads(fp, cls=ReportJSONDecoder)
-        report.file_path = None
+        return json.loads(report_json, cls=ReportJSONDecoder)
 
     @staticmethod
     def get_gap_between_reports(second_report, first_report):

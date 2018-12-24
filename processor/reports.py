@@ -1,4 +1,4 @@
-from report_parser import *
+from processor.report_parser import *
 
 import datetime
 import json
